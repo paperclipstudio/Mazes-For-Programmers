@@ -86,11 +86,46 @@ impl<const S: usize> Maze<S> {
         }
         self
     }
+
+    fn sidewinder(mut self) -> Self {
+        let mut rng = rand::rng();
+        for y in 0..S {
+            let mut run: usize = 0;
+            for x in 0..S {
+                run += 1;
+                let (up, right) = if x == S - 1 && y == S - 1 {
+                    // Top Right -> No more
+                    (false, false)
+                } else if x == S - 1 {
+                    // Right Wall -> Only Up
+                    (true, false)
+                } else if y == S - 1 || rng.random::<bool>() {
+                    // Top Wall or Continue run
+                    (false, true)
+                } else {
+                    // End run and pick random location to go up
+                    let pick: usize = rng.random_range(0..run);
+                    run = 0;
+                    if pick == 0 {
+                        // This is the cell to go up
+                        (true, false)
+                    } else {
+                        // Open up top of chosen cell
+                        self.at_mut(x - pick, y).up = true;
+                        // Close off current cell
+                        (false, false)
+                    }
+                };
+
+                self.set(x, y, Cell { up, right })
+            }
+        }
+        self
+    }
 }
 
 fn main() {
-    let mut maze: Maze<5> = Default::default();
-    maze = maze.binary_tree();
+    let mut maze: Maze<15> = Default::default();
+    maze = maze.sidewinder();
     maze.print();
-    println!("Hello, world!");
 }
