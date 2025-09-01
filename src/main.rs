@@ -39,29 +39,47 @@ impl<const S: usize> Maze<S> {
     fn print(&self) {
         for y in 0..S {
             // Top
-            print!(" ");
+            if y == 0 {
+                print!("╔");
+            } else {
+                print!("╟");
+            }
             for x in 0..S {
                 if self.at(x, S - y - 1).up {
-                    print!("    ")
+                    if x == S - 1 {
+                        print!("   ╢")
+                    } else {
+                        print!("   ┼")
+                    }
+                } else if y == 0 && x == S - 1 {
+                    print!("═══╗");
+                } else if y == 0 {
+                    print!("═══╤");
                 } else {
-                    print!("--- ");
+                    print!("───┼");
                 }
             }
 
             println!();
-            print!("|");
+            print!("║");
             for x in 0..S {
                 if self.at(x, S - y - 1).right {
                     print!("    ");
+                } else if x == S - 1 {
+                    print!("   ║");
                 } else {
-                    print!("   |");
+                    print!("   │");
                 }
             }
             println!()
         }
-        print!(" ");
-        for _ in 0..S {
-            print!("--- ");
+        print!("╚");
+        for x in 0..S {
+            if x == S - 1 {
+                print!("═══╝");
+            } else {
+                print!("═══╧");
+            }
         }
     }
 
@@ -125,7 +143,7 @@ impl<const S: usize> Maze<S> {
 }
 
 fn main() {
-    let mut maze: Maze<15> = Default::default();
+    let mut maze: Maze<5> = Default::default();
     maze = maze.sidewinder();
     maze.print();
 }
