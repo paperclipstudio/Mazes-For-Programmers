@@ -84,16 +84,16 @@ impl<const S: usize> Maze<S> {
                         (false, false, false, false) => print!("───┼"),
                         (false, false, false, true) => print!("───┬"),
                         (false, false, true, false) => print!("───┤"),
-                        (false, false, true, true) => print!("───┐"),
+                        (false, false, true, true) => print!("───╮"),
                         (false, true, false, false) => print!("───┴"),
                         (false, true, false, true) => print!("────"),
-                        (false, true, true, false) => print!("───┘"),
+                        (false, true, true, false) => print!("───╯"),
                         (false, true, true, true) => print!("─── "),
                         (true, false, false, false) => print!("   ├"),
-                        (true, false, false, true) => print!("   ┌"),
+                        (true, false, false, true) => print!("   ╭"),
                         (true, false, true, false) => print!("   │"),
                         (true, false, true, true) => print!("   │"),
-                        (true, true, false, false) => print!("   └"),
+                        (true, true, false, false) => print!("   ╰"),
                         (true, true, false, true) => print!("   ─"),
                         (true, true, true, false) => print!("   │"),
                         (true, true, true, true) => print!("    "),
@@ -104,7 +104,13 @@ impl<const S: usize> Maze<S> {
             println!();
             print!("║");
             for x in 0..S {
-                if self.at(x, S - y - 1).right {
+                if x == 0 && y == S - 1 && self.at(x, S - y - 1).right {
+                    print!("END ");
+                } else if x == 0 && y == S - 1 {
+                    print!("END│");
+                } else if x == S - 1 && y == 0 {
+                    print!("STA║");
+                } else if self.at(x, S - y - 1).right {
                     print!("    ");
                 } else if x == S - 1 {
                     print!("   ║");
