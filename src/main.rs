@@ -5,6 +5,32 @@ use rand::prelude::*;
 struct Cell {
     up: bool,
     right: bool,
+    dist: Option<u32>,
+}
+
+impl Cell {
+    fn blank() -> Self {
+        Cell {
+            up: false,
+            right: false,
+            dist: None,
+        }
+    }
+
+    fn new(up: bool, right: bool) -> Self {
+        Cell {
+            up,
+            right,
+            dist: None,
+        }
+    }
+}
+
+enum Direction {
+    North,
+    East,
+    South,
+    West,
 }
 
 #[derive(Copy, Clone)]
@@ -15,6 +41,7 @@ struct Maze<const S: usize> {
 static CLOSED_CELL: Cell = Cell {
     up: false,
     right: false,
+    dist: None,
 };
 
 impl<const S: usize> Default for Maze<S> {
@@ -48,6 +75,39 @@ impl<const S: usize> Maze<S> {
 
     fn at_mut(&mut self, x: usize, y: usize) -> &mut Cell {
         &mut self.cells[y][x]
+    }
+
+    fn can_go(&self, x: usize, y: usize, direction: Direction) -> bool {
+        match direction {
+            Direction::North => {
+                if y >= S - 1 {
+                    false
+                } else {
+                    self.at(x, y).up
+                }
+            }
+            Direction::East => {
+                if x >= S - 1 {
+                    false
+                } else {
+                    self.at(x, y).right
+                }
+            }
+            Direction::South => {
+                if y == 0 {
+                    false
+                } else {
+                    self.at_opt(x, y - 1).unwrap_or(&CLOSED_CELL).up
+                }
+            }
+            Direction::West => {
+                if x == 0 {
+                    false
+                } else {
+                    self.at_opt(x - 1, y).unwrap_or(&CLOSED_CELL).right
+                }
+            }
+        }
     }
 
     fn print(&self) {
@@ -104,6 +164,12 @@ impl<const S: usize> Maze<S> {
             println!();
             print!("║");
             for x in 0..S {
+                let dist: Option<u32> = self.at(x, S - y - 1).dist;
+                let dist_char: String = if let Some(distance) = dist {
+                    format!("{: >2}", distance)
+                } else {
+                    "  ".to_string()
+                };
                 if x == 0 && y == S - 1 && self.at(x, S - y - 1).right {
                     print!("END ");
                 } else if x == 0 && y == S - 1 {
@@ -111,11 +177,11 @@ impl<const S: usize> Maze<S> {
                 } else if x == S - 1 && y == 0 {
                     print!("STA║");
                 } else if self.at(x, S - y - 1).right {
-                    print!("    ");
+                    print!("{dist_char}  ");
                 } else if x == S - 1 {
-                    print!("   ║");
+                    print!("{dist_char} ║");
                 } else {
-                    print!("   │");
+                    print!("{dist_char} │");
                 }
             }
             println!()
@@ -148,7 +214,7 @@ impl<const S: usize> Maze<S> {
                     (false, true)
                 };
 
-                self.set(x, y, Cell { up, right })
+                self.set(x, y, Cell::new(up, right))
             }
         }
         self
@@ -184,7 +250,7 @@ impl<const S: usize> Maze<S> {
                     }
                 };
 
-                self.set(x, y, Cell { up, right })
+                self.set(x, y, Cell::new(up, right))
             }
         }
         self
@@ -193,14 +259,7 @@ impl<const S: usize> Maze<S> {
         let mut rng = rand::rng();
         for y in 0..S {
             for x in 0..S {
-                self.set(
-                    x,
-                    y,
-                    Cell {
-                        right: rng.random(),
-                        up: rng.random(),
-                    },
-                );
+                self.set(x, y, Cell::new(rng.random(), rng.random()));
             }
         }
         self
@@ -210,14 +269,7 @@ impl<const S: usize> Maze<S> {
         let mut rng = rand::rng();
         for y in 0..S {
             for x in 0..S {
-                self.set(
-                    x,
-                    y,
-                    Cell {
-                        right: true,
-                        up: rng.random(),
-                    },
-                );
+                self.set(x, y, Cell::new(rng.random(), true))
             }
         }
         self
@@ -227,20 +279,60 @@ impl<const S: usize> Maze<S> {
         let mut rng = rand::rng();
         for y in 0..S {
             for x in 0..S {
-                self.set(
-                    x,
-                    y,
-                    Cell {
-                        right: rng.random(),
-                        up: true,
-                    },
-                );
+                self.set(x, y, Cell::new(true, rng.random()));
             }
         }
+        self
+    }
+
+    fn calc_dist(mut self) -> Self {
+        let mut next = vec![(0, 0)];
+        self.at_mut(0, 0).dist = Some(0);
+        let mut _count = 0;
+        while let Some((x, y)) = next.pop() {
+            //dbg!(&next);
+            //dbg!(&next);
+            let cell = self.at_opt(x, y);
+            if cell.is_none() {
+                continue;
+            }
+            if cell.unwrap().dist.is_none() {
+                continue;
+            }
+            let dist = cell.unwrap().dist.unwrap();
+            //println!("{x} {y} {dist}");
+            _count += 1;
+            if x >= S {
+                continue;
+            }
+            if y >= S {
+                continue;
+            }
+            if self.can_go(x, y, Direction::North) && self.at(x, y + 1).dist.is_none() {
+                let _ = self.at_mut(x, y + 1).dist.insert(dist + 1);
+                next.push((x, y + 1));
+            }
+
+            if self.can_go(x, y, Direction::South) && self.at(x, y - 1).dist.is_none() {
+                let _ = self.at_mut(x, y - 1).dist.insert(dist + 1);
+                next.push((x, y - 1));
+            }
+
+            if self.can_go(x, y, Direction::West) && self.at(x - 1, y).dist.is_none() {
+                let _ = self.at_mut(x - 1, y).dist.insert(dist + 1);
+                next.push((x - 1, y));
+            }
+
+            if self.can_go(x, y, Direction::East) && self.at(x + 1, y).dist.is_none() {
+                let _ = self.at_mut(x + 1, y).dist.insert(dist + 1);
+                next.push((x + 1, y));
+            }
+        }
+
         self
     }
 }
 
 fn main() {
-    Maze::<10>::default().random().sidewinder().print();
+    Maze::<15>::default().sidewinder().calc_dist().print();
 }
