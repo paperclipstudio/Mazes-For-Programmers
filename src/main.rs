@@ -12,6 +12,11 @@ struct Maze<const S: usize> {
     cells: [[Cell; S]; S],
 }
 
+static CLOSED_CELL: Cell = Cell {
+    up: false,
+    right: false,
+};
+
 impl<const S: usize> Default for Maze<S> {
     fn default() -> Self {
         Maze {
@@ -25,6 +30,15 @@ impl<const S: usize> Maze<S> {
         //let index = y * S + x;
         // println!("{x} {y} {index}**");
         self.cells[y][x] = cell;
+    }
+    fn at_opt(&self, x: usize, y: usize) -> Option<&Cell> {
+        //let index = y * S + x;
+        // println!("{x} {y} {index}**");
+        if x < S && y < S {
+            Some(&self.cells[y][x])
+        } else {
+            None
+        }
     }
     fn at(&self, x: usize, y: usize) -> &Cell {
         //let index = y * S + x;
@@ -41,22 +55,49 @@ impl<const S: usize> Maze<S> {
             // Top
             if y == 0 {
                 print!("╔");
+            } else if self.at(0, S - y - 1).up {
+                print!("║");
             } else {
                 print!("╟");
             }
             for x in 0..S {
-                if self.at(x, S - y - 1).up {
-                    if x == S - 1 {
-                        print!("   ╢")
-                    } else {
-                        print!("   ┼")
-                    }
-                } else if y == 0 && x == S - 1 {
-                    print!("═══╗");
+                let left = self.at(x, S - y - 1).up;
+                let bottom = self.at(x, S - y - 1).right;
+                let right = self.at_opt(x + 1, S - y - 1).unwrap_or(&CLOSED_CELL).up;
+                let top = self.at_opt(x, S - y).unwrap_or(&CLOSED_CELL).right;
+                if y == 0 && x == S - 1 {
+                    print!("═══╗")
                 } else if y == 0 {
-                    print!("═══╤");
+                    if bottom {
+                        print!("════")
+                    } else {
+                        print!("═══╤")
+                    }
+                } else if x == S - 1 {
+                    if left {
+                        print!("   ║");
+                    } else {
+                        print!("───╢");
+                    }
                 } else {
-                    print!("───┼");
+                    match (left, bottom, right, top) {
+                        (false, false, false, false) => print!("───┼"),
+                        (false, false, false, true) => print!("───┬"),
+                        (false, false, true, false) => print!("───┤"),
+                        (false, false, true, true) => print!("───┐"),
+                        (false, true, false, false) => print!("───┴"),
+                        (false, true, false, true) => print!("────"),
+                        (false, true, true, false) => print!("───┘"),
+                        (false, true, true, true) => print!("─── "),
+                        (true, false, false, false) => print!("   ├"),
+                        (true, false, false, true) => print!("   ┌"),
+                        (true, false, true, false) => print!("   │"),
+                        (true, false, true, true) => print!("   │"),
+                        (true, true, false, false) => print!("   └"),
+                        (true, true, false, true) => print!("   ─"),
+                        (true, true, true, false) => print!("   │"),
+                        (true, true, true, true) => print!("    "),
+                    };
                 }
             }
 
@@ -77,6 +118,8 @@ impl<const S: usize> Maze<S> {
         for x in 0..S {
             if x == S - 1 {
                 print!("═══╝");
+            } else if self.at(x, 0).right {
+                print!("════");
             } else {
                 print!("═══╧");
             }
@@ -140,10 +183,58 @@ impl<const S: usize> Maze<S> {
         }
         self
     }
+    fn random(mut self) -> Self {
+        let mut rng = rand::rng();
+        for y in 0..S {
+            for x in 0..S {
+                self.set(
+                    x,
+                    y,
+                    Cell {
+                        right: rng.random(),
+                        up: rng.random(),
+                    },
+                );
+            }
+        }
+        self
+    }
+
+    fn rights(mut self) -> Self {
+        let mut rng = rand::rng();
+        for y in 0..S {
+            for x in 0..S {
+                self.set(
+                    x,
+                    y,
+                    Cell {
+                        right: true,
+                        up: rng.random(),
+                    },
+                );
+            }
+        }
+        self
+    }
+
+    fn ups(mut self) -> Self {
+        let mut rng = rand::rng();
+        for y in 0..S {
+            for x in 0..S {
+                self.set(
+                    x,
+                    y,
+                    Cell {
+                        right: rng.random(),
+                        up: true,
+                    },
+                );
+            }
+        }
+        self
+    }
 }
 
 fn main() {
-    let mut maze: Maze<5> = Default::default();
-    maze = maze.sidewinder();
-    maze.print();
+    Maze::<10>::default().random().sidewinder().print();
 }
