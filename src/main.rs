@@ -6,6 +6,7 @@ struct Cell {
     up: bool,
     right: bool,
     dist: Option<u32>,
+    path: Option<bool>,
 }
 
 impl Cell {
@@ -14,6 +15,7 @@ impl Cell {
             up: false,
             right: false,
             dist: None,
+            path: None,
         }
     }
 
@@ -22,6 +24,7 @@ impl Cell {
             up,
             right,
             dist: None,
+            path: None,
         }
     }
 }
@@ -42,6 +45,7 @@ static CLOSED_CELL: Cell = Cell {
     up: false,
     right: false,
     dist: None,
+    path: None,
 };
 
 impl<const S: usize> Default for Maze<S> {
@@ -165,11 +169,16 @@ impl<const S: usize> Maze<S> {
             print!("║");
             for x in 0..S {
                 let dist: Option<u32> = self.at(x, S - y - 1).dist;
-                let dist_char: String = if let Some(distance) = dist {
-                    format!("{: >2}", distance)
+                let path: Option<bool> = self.at(x, S - y - 1).path;
+                let dist_char: String = if path == Some(true) {
+                    //
+                    //
+                    //
+                    format!("{: >2}", dist.unwrap())
                 } else {
                     "  ".to_string()
                 };
+
                 if x == 0 && y == S - 1 && self.at(x, S - y - 1).right {
                     print!("END ");
                 } else if x == 0 && y == S - 1 {
@@ -285,6 +294,30 @@ impl<const S: usize> Maze<S> {
         self
     }
 
+    fn shortist_path(mut self, start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Self {
+        let mut x = end_x;
+        let mut y = end_y;
+        while x != start_x || y != start_y {
+            let current = self.at_mut(x, y);
+            current.path = Some(true);
+            let dist = current.dist.expect("Maze should have a current distance");
+
+            let nexts = [
+                (x.saturating_sub(1), y),
+                (x + 1, y),
+                (x, y.saturating_sub(1)),
+                (x, y + 1), //
+            ];
+            let next_step = nexts
+                .iter()
+                .filter(|(x, y)| self.at_opt(*x, *y).is_some())
+                .find(|(x, y)| self.at(*x, *y).dist.unwrap() == dist - 1);
+            x = next_step.unwrap().0;
+            y = next_step.unwrap().1;
+        }
+        self
+    }
+
     fn calc_dist(mut self) -> Self {
         let mut next = vec![(0, 0)];
         self.at_mut(0, 0).dist = Some(0);
@@ -334,5 +367,9 @@ impl<const S: usize> Maze<S> {
 }
 
 fn main() {
-    Maze::<15>::default().sidewinder().calc_dist().print();
+    Maze::<15>::default()
+        .sidewinder()
+        .calc_dist()
+        .shortist_path(0, 0, 14, 14)
+        .print();
 }
