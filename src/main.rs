@@ -29,6 +29,7 @@ impl Cell {
     }
 }
 
+#[derive(Copy, Clone)]
 enum Direction {
     North,
     East,
@@ -115,6 +116,7 @@ impl<const S: usize> Maze<S> {
     }
 
     fn print(&self) {
+        let has_path = self.cells.iter().flatten().any(|cell| cell.path.is_some());
         for y in 0..S {
             // Top
             if y == 0 {
@@ -170,10 +172,14 @@ impl<const S: usize> Maze<S> {
             for x in 0..S {
                 let dist: Option<u32> = self.at(x, S - y - 1).dist;
                 let path: Option<bool> = self.at(x, S - y - 1).path;
-                let dist_char: String = if path == Some(true) {
+                let dist_char: String = if has_path && path == Some(true) {
                     //
                     //
                     //
+                    format!("{: >2}", dist.unwrap())
+                } else if has_path {
+                    "  ".to_string()
+                } else if dist.is_some() {
                     format!("{: >2}", dist.unwrap())
                 } else {
                     "  ".to_string()
@@ -205,6 +211,7 @@ impl<const S: usize> Maze<S> {
                 print!("═══╧");
             }
         }
+        println!();
     }
 
     fn binary_tree(mut self) -> Self {
@@ -297,7 +304,13 @@ impl<const S: usize> Maze<S> {
     fn shortist_path(mut self, start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Self {
         let mut x = end_x;
         let mut y = end_y;
+        let mut limit = 0;
         while x != start_x || y != start_y {
+            limit += 1;
+            if limit > 1000 {
+                println!("Looping in shortest path");
+                return self;
+            }
             let current = self.at_mut(x, y);
             current.path = Some(true);
             let dist = current.dist.expect("Maze should have a current distance");
@@ -308,19 +321,33 @@ impl<const S: usize> Maze<S> {
                 (x, y.saturating_sub(1)),
                 (x, y + 1), //
             ];
+            let nexts_dir = [
+                Direction::West,
+                Direction::East,
+                Direction::South,
+                Direction::North,
+            ];
             let next_step = nexts
                 .iter()
+                .zip(nexts_dir)
+                .filter(|(_, dir)| self.can_go(x, y, *dir))
+                .map(|(pos, _)| pos)
                 .filter(|(x, y)| self.at_opt(*x, *y).is_some())
-                .find(|(x, y)| self.at(*x, *y).dist.unwrap() == dist - 1);
+                .find(|(x, y)| self.at(*x, *y).dist.unwrap() == dist.saturating_sub(1));
+            if next_step.is_none() {
+                println!("Failed to find shortest path");
+                return self;
+            }
             x = next_step.unwrap().0;
             y = next_step.unwrap().1;
         }
         self
     }
 
-    fn calc_dist(mut self) -> Self {
-        let mut next = vec![(0, 0)];
-        self.at_mut(0, 0).dist = Some(0);
+    fn calc_dist(mut self, x: usize, y: usize) -> Self {
+        self.cells.iter_mut().flatten().for_each(|cell| cell.dist = None);
+        let mut next = vec![(x, y)];
+        self.at_mut(x, y).dist = Some(0);
         let mut _count = 0;
         while let Some((x, y)) = next.pop() {
             //dbg!(&next);
@@ -334,7 +361,6 @@ impl<const S: usize> Maze<S> {
             }
             let dist = cell.unwrap().dist.unwrap();
             //println!("{x} {y} {dist}");
-            _count += 1;
             if x >= S {
                 continue;
             }
@@ -342,34 +368,84 @@ impl<const S: usize> Maze<S> {
                 continue;
             }
             if self.can_go(x, y, Direction::North) && self.at(x, y + 1).dist.is_none() {
-                let _ = self.at_mut(x, y + 1).dist.insert(dist + 1);
+                self.at_mut(x, y + 1).dist = Some(dist + 1);
                 next.push((x, y + 1));
             }
 
             if self.can_go(x, y, Direction::South) && self.at(x, y - 1).dist.is_none() {
-                let _ = self.at_mut(x, y - 1).dist.insert(dist + 1);
+                self.at_mut(x, y - 1).dist = Some(dist + 1);
                 next.push((x, y - 1));
             }
 
             if self.can_go(x, y, Direction::West) && self.at(x - 1, y).dist.is_none() {
-                let _ = self.at_mut(x - 1, y).dist.insert(dist + 1);
+                self.at_mut(x - 1, y).dist = Some(dist + 1);
                 next.push((x - 1, y));
             }
 
             if self.can_go(x, y, Direction::East) && self.at(x + 1, y).dist.is_none() {
-                let _ = self.at_mut(x + 1, y).dist.insert(dist + 1);
+                self.at_mut(x + 1, y).dist = Some(dist + 1);
                 next.push((x + 1, y));
             }
         }
 
         self
     }
+
+    fn calc_longest(&mut self) -> (usize, usize, usize, usize) {
+        *self = self.calc_dist(0, 0);
+        self.print();
+        let mut max_x = 0;
+        let mut max_y = 0;
+        let mut max = 0;
+        for x in 0..S {
+            for y in 0..S {
+                if self.at(x, y).dist.unwrap_or_default() > max {
+                    max_x = x;
+                    max_y = y;
+                    max = self.at(x, y).dist.unwrap_or_default();
+                }
+            }
+        }
+        println!("first pass: {max_x}, {max_y}");
+        *self = self.calc_dist(max_x, max_y);
+        self.print();
+        max = 0;
+        for x in 0..S {
+            for y in 0..S {
+                if self.at(x, y).dist.unwrap_or_default() > max {
+                    max_x = x;
+                    max_y = y;
+                    max = self.at(x, y).dist.unwrap_or_default();
+                }
+            }
+        }
+        let start_x = max_x;
+        let start_y = max_y;
+
+        *self = self.calc_dist(max_x, max_y);
+        self.print();
+        max = 0;
+        for x in 0..S {
+            for y in 0..S {
+                if self.at(x, y).dist.unwrap_or_default() > max {
+                    max_x = x;
+                    max_y = y;
+                    max = self.at(x, y).dist.unwrap_or_default();
+                }
+            }
+        }
+        println!("Result: {start_x}, {start_y}, {max_x}, {max_y}");
+        (start_x, start_y, max_x, max_y)
+    }
 }
 
 fn main() {
-    Maze::<15>::default()
-        .sidewinder()
-        .calc_dist()
-        .shortist_path(0, 0, 14, 14)
-        .print();
+    let mut maze = Maze::<15>::default().sidewinder();
+
+    let (x1, y1, x2, y2) = maze.calc_longest();
+    println!("{x1}, {y1} -> {x2}, {y2}");
+
+    maze = maze.calc_dist(x1, y1);
+    println!("{x1}, {y1} -> {x2}, {y2}");
+    maze.shortist_path(x1, y1, x2, y2).print();
 }
