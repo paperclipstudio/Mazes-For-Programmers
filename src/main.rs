@@ -40,6 +40,10 @@ enum Direction {
 #[derive(Copy, Clone)]
 struct Maze<const S: usize> {
     cells: [[Cell; S]; S],
+    startx: usize,
+    starty: usize,
+    endx: usize,
+    endy: usize,
 }
 
 static CLOSED_CELL: Cell = Cell {
@@ -53,6 +57,10 @@ impl<const S: usize> Default for Maze<S> {
     fn default() -> Self {
         Maze {
             cells: [[Cell::default(); S]; S],
+            startx: 0,
+            starty: 0,
+            endx: S - 1,
+            endy: S - 1,
         }
     }
 }
@@ -118,22 +126,24 @@ impl<const S: usize> Maze<S> {
     fn print(&self) {
         let has_path = self.cells.iter().flatten().any(|cell| cell.path.is_some());
         for y in 0..S {
+            // Flip so re render from the top down.
+            let y = S - 1 - y;
             // Top
-            if y == 0 {
+            if y == S - 1 {
                 print!("╔");
-            } else if self.at(0, S - y - 1).up {
+            } else if self.at(0, y).up {
                 print!("║");
             } else {
                 print!("╟");
             }
             for x in 0..S {
-                let left = self.at(x, S - y - 1).up;
-                let bottom = self.at(x, S - y - 1).right;
-                let right = self.at_opt(x + 1, S - y - 1).unwrap_or(&CLOSED_CELL).up;
-                let top = self.at_opt(x, S - y).unwrap_or(&CLOSED_CELL).right;
-                if y == 0 && x == S - 1 {
+                let left = self.at(x, y).up;
+                let bottom = self.at(x, y).right;
+                let right = self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).up;
+                let top = self.at_opt(x, y + 1).unwrap_or(&CLOSED_CELL).right;
+                if y == S - 1 && x == S - 1 {
                     print!("═══╗")
-                } else if y == 0 {
+                } else if y == S - 1 {
                     if bottom {
                         print!("════")
                     } else {
@@ -170,8 +180,8 @@ impl<const S: usize> Maze<S> {
             println!();
             print!("║");
             for x in 0..S {
-                let dist: Option<u32> = self.at(x, S - y - 1).dist;
-                let path: Option<bool> = self.at(x, S - y - 1).path;
+                let dist: Option<u32> = self.at(x, y).dist;
+                let path: Option<bool> = self.at(x, y).path;
                 let dist_char: String = if has_path && path == Some(true) {
                     //
                     //
@@ -185,13 +195,20 @@ impl<const S: usize> Maze<S> {
                     "  ".to_string()
                 };
 
-                if x == 0 && y == S - 1 && self.at(x, S - y - 1).right {
+                if x == self.endx && y == self.endy && self.at(x, y).right {
                     print!("END ");
-                } else if x == 0 && y == S - 1 {
+                } else if x == self.endx && y == self.endy && x == S - 1 {
+                    print!("END║");
+                } else if x == self.endx && y == self.endy {
                     print!("END│");
-                } else if x == S - 1 && y == 0 {
+                } else if x == self.startx && y == self.starty && self.can_go(x, y, Direction::East)
+                {
+                    print!("STA ");
+                } else if x == self.startx && y == self.starty && y == S - 1 {
                     print!("STA║");
-                } else if self.at(x, S - y - 1).right {
+                } else if x == self.startx && y == self.starty {
+                    print!("STA│");
+                } else if self.at(x, y).right {
                     print!("{dist_char}  ");
                 } else if x == S - 1 {
                     print!("{dist_char} ║");
@@ -301,11 +318,17 @@ impl<const S: usize> Maze<S> {
         self
     }
 
-    fn shortist_path(mut self, start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Self {
-        let mut x = end_x;
-        let mut y = end_y;
+    fn shortist_path(
+        mut self,
+        _start_x: usize,
+        _start_y: usize,
+        _end_x: usize,
+        _end_y: usize,
+    ) -> Self {
+        let mut x = self.endx;
+        let mut y = self.endy;
         let mut limit = 0;
-        while x != start_x || y != start_y {
+        while x != self.startx || y != self.starty {
             limit += 1;
             if limit > 1000 {
                 println!("Looping in shortest path");
@@ -345,7 +368,10 @@ impl<const S: usize> Maze<S> {
     }
 
     fn calc_dist(mut self, x: usize, y: usize) -> Self {
-        self.cells.iter_mut().flatten().for_each(|cell| cell.dist = None);
+        self.cells
+            .iter_mut()
+            .flatten()
+            .for_each(|cell| cell.dist = None);
         let mut next = vec![(x, y)];
         self.at_mut(x, y).dist = Some(0);
         let mut _count = 0;
@@ -393,7 +419,7 @@ impl<const S: usize> Maze<S> {
 
     fn calc_longest(&mut self) -> (usize, usize, usize, usize) {
         *self = self.calc_dist(0, 0);
-        self.print();
+        //self.print();
         let mut max_x = 0;
         let mut max_y = 0;
         let mut max = 0;
@@ -408,7 +434,7 @@ impl<const S: usize> Maze<S> {
         }
         println!("first pass: {max_x}, {max_y}");
         *self = self.calc_dist(max_x, max_y);
-        self.print();
+        //self.print();
         max = 0;
         for x in 0..S {
             for y in 0..S {
@@ -421,9 +447,10 @@ impl<const S: usize> Maze<S> {
         }
         let start_x = max_x;
         let start_y = max_y;
-
+        self.startx = start_x;
+        self.starty = start_y;
         *self = self.calc_dist(max_x, max_y);
-        self.print();
+        //self.print();
         max = 0;
         for x in 0..S {
             for y in 0..S {
@@ -434,8 +461,18 @@ impl<const S: usize> Maze<S> {
                 }
             }
         }
+        self.endx = max_x;
+        self.endy = max_y;
         println!("Result: {start_x}, {start_y}, {max_x}, {max_y}");
         (start_x, start_y, max_x, max_y)
+    }
+
+    fn clear_path(mut self) -> Self {
+        self.cells.iter_mut().flatten().for_each(|cell| {
+            cell.dist = None;
+            cell.path = None;
+        });
+        self
     }
 }
 
@@ -447,5 +484,8 @@ fn main() {
 
     maze = maze.calc_dist(x1, y1);
     println!("{x1}, {y1} -> {x2}, {y2}");
-    maze.shortist_path(x1, y1, x2, y2).print();
+    maze = maze.shortist_path(x1, y1, x2, y2);
+    //    maze.print();
+    maze = maze.clear_path();
+    maze.print();
 }
