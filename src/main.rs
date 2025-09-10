@@ -30,7 +30,7 @@ impl Cell {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum Direction {
     North,
     East,
@@ -327,31 +327,68 @@ impl<const S: usize> Maze<S> {
         self = self.clear();
         let mut known_cells: [[bool; S]; S] = [[false; S]; S];
         // Make once cell known
-        known_cells[0][0] = true;
         let mut rng = rand::rng();
-        while known_cells.as_flattened().iter().any(|x| *x) {
-            let mut currentx: usize = rng.random_range(0..S);
-            let mut currenty: usize = rng.random_range(0..S);
-            let current = (currentx, currenty);
-            let mut path = vec![current];
-            for _ in 0..10 {
-                let direction = ALL[rng.random_range(0..ALL.len())];
-                if let Some(next) = self.step(currentx, currenty, direction) {
-                    while path.contains(&next) {
-                        // TODO improve
-                        path.pop();
-                    }
-                    if known_cells[next.0][next.1] {
-                        return self;
-                        //todo!("Set path");
-                    }
-                    (currentx, currenty) = next;
+        known_cells[rng.random_range(0..S)][rng.random_range(0..S)] = true;
+        //        while known_cells.as_flattened().iter().any(|x| *x) {
+        let mut currentx: usize = rng.random_range(0..S);
+        let mut currenty: usize = rng.random_range(0..S);
+        // let mut currentx: usize = S - 1;
+        // let mut currenty: usize = S - 1;
+        let current = (currentx, currenty);
+        let mut path = vec![current];
+        loop {
+            let direction = ALL[rng.random_range(0..ALL.len())];
+            //dbg!(direction, i);
+            if let Some(next) = self.step(currentx, currenty, direction) {
+                while path.contains(&next) {
+                    path.pop();
                 }
+                path.push(next);
+                if known_cells[next.0][next.1] {
+                    // dbg!(path);
+                    // dbg!(next);
+                    // dbg!(currentx, currenty);
+                    // //return self;
+                    // todo!("Set path");
+                    break;
+                }
+                (currentx, currenty) = next;
             }
-            path.iter()
-                .for_each(|(x, y)| self.at_mut(*x, *y).path = Some(true));
-            self.print();
         }
+        path.iter()
+            .for_each(|(x, y)| self.at_mut(*x, *y).path = Some(true));
+        let path_directions = path
+            .iter()
+            .as_slice()
+            .windows(2)
+            .map(|x| match x {
+                [] => panic!("Empty"),
+                [_] => panic!("One"),
+                [from, to, ..] => (to.0 + 10 - from.0, to.1 + 10 - from.1),
+            })
+            .map(|dir| match dir {
+                (10, 11) => Direction::North,
+                (11, 10) => Direction::West,
+                (10, 9) => Direction::South,
+                (9, 10) => Direction::East,
+                (x, y) => panic!("Unexpected ({x} {y})"),
+            })
+            .collect::<Vec<_>>();
+
+        path.iter()
+            .zip(path_directions)
+            .for_each(|(pos, dir)| match dir {
+                Direction::North => self.at_mut(pos.0, pos.1).up = true,
+                Direction::West => self.at_mut(pos.0, pos.1).right = true,
+                Direction::South => self.at_mut(pos.0, pos.1 - 1).up = true,
+                Direction::East => self.at_mut(pos.0 - 1, pos.1).right = true,
+            });
+        //        dbg!(path);
+        //            break;
+        //       }
+        //return self;
+        self.print();
+        println!("{:?}", path);
         // While some cells are unknown
         // make current location random
         // Make random s
@@ -558,7 +595,7 @@ impl<const S: usize> Maze<S> {
 }
 
 fn main() {
-    let mut maze = Maze::<15>::default().walker();
+    let mut maze = Maze::<10>::default().walker();
 
     let (x1, y1, x2, y2) = maze.calc_longest();
     println!("{x1}, {y1} -> {x2}, {y2}");
