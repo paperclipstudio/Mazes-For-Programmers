@@ -329,59 +329,77 @@ impl<const S: usize> Maze<S> {
         // Make once cell known
         let mut rng = rand::rng();
         known_cells[rng.random_range(0..S)][rng.random_range(0..S)] = true;
-        //        while known_cells.as_flattened().iter().any(|x| *x) {
-        let mut currentx: usize = rng.random_range(0..S);
-        let mut currenty: usize = rng.random_range(0..S);
-        let current = (currentx, currenty);
-        let mut path = vec![current];
-        loop {
-            let direction = ALL[rng.random_range(0..ALL.len())];
-            //dbg!(direction, i);
-            if let Some(next) = self.step(currentx, currenty, direction) {
-                if let Some(index) = path.iter().position(|x| *x == next) {
-                    path.truncate(index);
-                }
-                path.push(next);
-                if known_cells[next.0][next.1] {
-                    break;
-                }
-                (currentx, currenty) = next;
+        let mut limit = 0;
+        while known_cells.as_flattened().iter().any(|x| !*x) {
+            limit += 1;
+            if limit > 20 {
+                //break;
             }
-        }
-        path.iter()
-            .for_each(|(x, y)| self.at_mut(*x, *y).path = Some(true));
-        let path_directions = path
-            .iter()
-            .as_slice()
-            .windows(2)
-            .map(|x| match x {
-                [] => panic!("Empty"),
-                [_] => panic!("One"),
-                [from, to, ..] => (to.0 + 10 - from.0, to.1 + 10 - from.1),
-            })
-            .map(|dir| match dir {
-                (10, 11) => Direction::North,
-                (11, 10) => Direction::West,
-                (10, 9) => Direction::South,
-                (9, 10) => Direction::East,
-                (x, y) => panic!("Unexpected ({x} {y})"),
-            })
-            .collect::<Vec<_>>();
+            let sta = known_cells
+                .iter()
+                .flatten()
+                .enumerate()
+                .map(|(index, known)| ((index / S, index % S), known))
+                .filter(|(_, known)| !**known)
+                .map(|(pos, _)| pos)
+                .next()
+                .unwrap();
 
-        path.iter()
-            .zip(path_directions)
-            .for_each(|(pos, dir)| match dir {
-                Direction::North => self.at_mut(pos.0, pos.1).up = true,
-                Direction::West => self.at_mut(pos.0, pos.1).right = true,
-                Direction::South => self.at_mut(pos.0, pos.1 - 1).up = true,
-                Direction::East => self.at_mut(pos.0 - 1, pos.1).right = true,
+            let mut currentx: usize = sta.0;
+            let mut currenty: usize = sta.1;
+            let current = (currentx, currenty);
+            let mut path = vec![current];
+            loop {
+                let direction = ALL[rng.random_range(0..ALL.len())];
+                //dbg!(direction, i);
+                if let Some(next) = self.step(currentx, currenty, direction) {
+                    if let Some(index) = path.iter().position(|x| *x == next) {
+                        path.truncate(index);
+                    }
+                    path.push(next);
+                    if known_cells[next.0][next.1] {
+                        break;
+                    }
+                    (currentx, currenty) = next;
+                }
+            }
+            path.iter()
+                .for_each(|(x, y)| self.at_mut(*x, *y).path = Some(true));
+            let path_directions = path
+                .iter()
+                .as_slice()
+                .windows(2)
+                .map(|x| match x {
+                    [] => panic!("Empty"),
+                    [_] => panic!("One"),
+                    [from, to, ..] => (to.0 + 10 - from.0, to.1 + 10 - from.1),
+                })
+                .map(|dir| match dir {
+                    (10, 11) => Direction::North,
+                    (11, 10) => Direction::West,
+                    (10, 9) => Direction::South,
+                    (9, 10) => Direction::East,
+                    (x, y) => panic!("Unexpected ({x} {y})"),
+                })
+                .collect::<Vec<_>>();
+
+            path.iter().zip(path_directions).for_each(|(pos, dir)| {
+                known_cells[pos.0][pos.1] = true;
+                match dir {
+                    Direction::North => self.at_mut(pos.0, pos.1).up = true,
+                    Direction::West => self.at_mut(pos.0, pos.1).right = true,
+                    Direction::South => self.at_mut(pos.0, pos.1 - 1).up = true,
+                    Direction::East => self.at_mut(pos.0 - 1, pos.1).right = true,
+                }
             });
+        }
+
         //        dbg!(path);
         //            break;
         //       }
         //return self;
-        self.print();
-        println!("{:?}", path);
+        //self.print();
+        //        println!("{:?}", path);
         // While some cells are unknown
         // make current location random
         // Make random s
@@ -588,7 +606,7 @@ impl<const S: usize> Maze<S> {
 }
 
 fn main() {
-    let mut maze = Maze::<10>::default().walker();
+    let mut maze = Maze::<20>::default().walker();
 
     let (x1, y1, x2, y2) = maze.calc_longest();
     println!("{x1}, {y1} -> {x2}, {y2}");
