@@ -332,24 +332,17 @@ impl<const S: usize> Maze<S> {
         //        while known_cells.as_flattened().iter().any(|x| *x) {
         let mut currentx: usize = rng.random_range(0..S);
         let mut currenty: usize = rng.random_range(0..S);
-        // let mut currentx: usize = S - 1;
-        // let mut currenty: usize = S - 1;
         let current = (currentx, currenty);
         let mut path = vec![current];
         loop {
             let direction = ALL[rng.random_range(0..ALL.len())];
             //dbg!(direction, i);
             if let Some(next) = self.step(currentx, currenty, direction) {
-                while path.contains(&next) {
-                    path.pop();
+                if let Some(index) = path.iter().position(|x| *x == next) {
+                    path.truncate(index);
                 }
                 path.push(next);
                 if known_cells[next.0][next.1] {
-                    // dbg!(path);
-                    // dbg!(next);
-                    // dbg!(currentx, currenty);
-                    // //return self;
-                    // todo!("Set path");
                     break;
                 }
                 (currentx, currenty) = next;
