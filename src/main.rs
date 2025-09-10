@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use rand::prelude::*;
 
 #[derive(Copy, Clone, Default)]
@@ -36,6 +37,13 @@ enum Direction {
     South,
     West,
 }
+
+const ALL: [Direction; 4] = [
+    Direction::North,
+    Direction::West,
+    Direction::South,
+    Direction::East,
+];
 
 #[derive(Copy, Clone)]
 struct Maze<const S: usize> {
@@ -88,6 +96,27 @@ impl<const S: usize> Maze<S> {
 
     fn at_mut(&mut self, x: usize, y: usize) -> &mut Cell {
         &mut self.cells[y][x]
+    }
+
+    fn step(&self, x: usize, y: usize, direction: Direction) -> Option<(usize, usize)> {
+        match direction {
+            Direction::South => Some((x, y.checked_sub(1)?)),
+            Direction::West => Some((x.checked_sub(1)?, y)),
+            Direction::North => {
+                if y >= S - 1 {
+                    None
+                } else {
+                    Some((x, y + 1))
+                }
+            }
+            Direction::East => {
+                if x >= S - 1 {
+                    None
+                } else {
+                    Some((x + 1, y))
+                }
+            }
+        }
     }
 
     fn can_go(&self, x: usize, y: usize, direction: Direction) -> bool {
@@ -186,7 +215,11 @@ impl<const S: usize> Maze<S> {
                     //
                     //
                     //
-                    format!("{: >2}", dist.unwrap())
+                    if let Some(dist) = dist {
+                        format!("{: >2}", dist)
+                    } else {
+                        "<>".to_string()
+                    }
                 } else if has_path {
                     "  ".to_string()
                 } else if dist.is_some() {
@@ -288,6 +321,43 @@ impl<const S: usize> Maze<S> {
         }
         self
     }
+
+    #[allow(unused_variables)]
+    fn walker(mut self) -> Self {
+        self = self.clear();
+        let mut known_cells: [[bool; S]; S] = [[false; S]; S];
+        // Make once cell known
+        known_cells[0][0] = true;
+        let mut rng = rand::rng();
+        while known_cells.as_flattened().iter().any(|x| *x) {
+            let mut currentx: usize = rng.random_range(0..S);
+            let mut currenty: usize = rng.random_range(0..S);
+            let current = (currentx, currenty);
+            let mut path = vec![current];
+            for _ in 0..10 {
+                let direction = ALL[rng.random_range(0..ALL.len())];
+                if let Some(next) = self.step(currentx, currenty, direction) {
+                    while path.contains(&next) {
+                        // TODO improve
+                        path.pop();
+                    }
+                    if known_cells[next.0][next.1] {
+                        return self;
+                        //todo!("Set path");
+                    }
+                    (currentx, currenty) = next;
+                }
+            }
+            path.iter()
+                .for_each(|(x, y)| self.at_mut(*x, *y).path = Some(true));
+            self.print();
+        }
+        // While some cells are unknown
+        // make current location random
+        // Make random s
+        self
+    }
+
     fn random(mut self) -> Self {
         let mut rng = rand::rng();
         for y in 0..S {
@@ -474,10 +544,21 @@ impl<const S: usize> Maze<S> {
         });
         self
     }
+
+    fn clear(mut self) -> Self {
+        self.startx = 0;
+        self.starty = 0;
+        self.endx = S - 1;
+        self.endy = S - 1;
+        self.cells.iter_mut().flatten().for_each(|cell| {
+            *cell = Cell::blank();
+        });
+        self
+    }
 }
 
 fn main() {
-    let mut maze = Maze::<15>::default().sidewinder();
+    let mut maze = Maze::<15>::default().walker();
 
     let (x1, y1, x2, y2) = maze.calc_longest();
     println!("{x1}, {y1} -> {x2}, {y2}");
