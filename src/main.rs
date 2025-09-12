@@ -58,7 +58,7 @@ impl Cell {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum Direction {
     North,
     East,
@@ -67,6 +67,13 @@ enum Direction {
 }
 
 impl Direction {}
+
+const ALL: [Direction; 4] = [
+    Direction::North,
+    Direction::West,
+    Direction::South,
+    Direction::East,
+];
 
 #[derive(Copy, Clone)]
 struct Maze<const S: usize> {
@@ -127,6 +134,27 @@ impl<const S: usize> Maze<S> {
 
     fn all_pos() -> impl Iterator<Item = Pos> {
         (0..S * S).map(|value| Pos::new(value % S, value / S))
+    }
+
+    fn step(&self, x: usize, y: usize, direction: Direction) -> Option<(usize, usize)> {
+        match direction {
+            Direction::South => Some((x, y.checked_sub(1)?)),
+            Direction::West => Some((x.checked_sub(1)?, y)),
+            Direction::North => {
+                if y >= S - 1 {
+                    None
+                } else {
+                    Some((x, y + 1))
+                }
+            }
+            Direction::East => {
+                if x >= S - 1 {
+                    None
+                } else {
+                    Some((x + 1, y))
+                }
+            }
+        }
     }
 
     fn can_go(&self, x: usize, y: usize, direction: Direction) -> bool {
@@ -225,7 +253,11 @@ impl<const S: usize> Maze<S> {
                     //
                     //
                     //
-                    format!("{: >2}", dist.unwrap())
+                    if let Some(dist) = dist {
+                        format!("{: >2}", dist)
+                    } else {
+                        "<>".to_string()
+                    }
                 } else if has_path {
                     "  ".to_string()
                 } else if dist.is_some() {
@@ -329,6 +361,90 @@ impl<const S: usize> Maze<S> {
         }
         self
     }
+
+    fn walker(mut self) -> Self {
+        self = self.clear();
+        let mut known_cells: [[bool; S]; S] = [[false; S]; S];
+        // Make once cell known
+        let mut rng = rand::rng();
+        known_cells[rng.random_range(0..S)][rng.random_range(0..S)] = true;
+        let mut limit = 0;
+        while known_cells.as_flattened().iter().any(|x| !*x) {
+            limit += 1;
+            if limit > 20 {
+                //break;
+            }
+            let sta = known_cells
+                .iter()
+                .flatten()
+                .enumerate()
+                .map(|(index, known)| ((index / S, index % S), known))
+                .filter(|(_, known)| !**known)
+                .map(|(pos, _)| pos)
+                .next()
+                .unwrap();
+
+            let mut currentx: usize = sta.0;
+            let mut currenty: usize = sta.1;
+            let current = (currentx, currenty);
+            let mut path = vec![current];
+            loop {
+                let direction = ALL[rng.random_range(0..ALL.len())];
+                //dbg!(direction, i);
+                if let Some(next) = self.step(currentx, currenty, direction) {
+                    if let Some(index) = path.iter().position(|x| *x == next) {
+                        path.truncate(index);
+                    }
+                    path.push(next);
+                    if known_cells[next.0][next.1] {
+                        break;
+                    }
+                    (currentx, currenty) = next;
+                }
+            }
+            path.iter()
+                .for_each(|(x, y)| self.at_mut(*x, *y).path = Some(true));
+            let path_directions = path
+                .iter()
+                .as_slice()
+                .windows(2)
+                .map(|x| match x {
+                    [] => panic!("Empty"),
+                    [_] => panic!("One"),
+                    [from, to, ..] => (to.0 + 10 - from.0, to.1 + 10 - from.1),
+                })
+                .map(|dir| match dir {
+                    (10, 11) => Direction::North,
+                    (11, 10) => Direction::West,
+                    (10, 9) => Direction::South,
+                    (9, 10) => Direction::East,
+                    (x, y) => panic!("Unexpected ({x} {y})"),
+                })
+                .collect::<Vec<_>>();
+
+            path.iter().zip(path_directions).for_each(|(pos, dir)| {
+                known_cells[pos.0][pos.1] = true;
+                match dir {
+                    Direction::North => self.at_mut(pos.0, pos.1).up = true,
+                    Direction::West => self.at_mut(pos.0, pos.1).right = true,
+                    Direction::South => self.at_mut(pos.0, pos.1 - 1).up = true,
+                    Direction::East => self.at_mut(pos.0 - 1, pos.1).right = true,
+                }
+            });
+        }
+
+        //        dbg!(path);
+        //            break;
+        //       }
+        //return self;
+        //self.print();
+        //        println!("{:?}", path);
+        // While some cells are unknown
+        // make current location random
+        // Make random s
+        self
+    }
+
     fn random(mut self) -> Self {
         let mut rng = rand::rng();
         for y in 0..S {
@@ -476,7 +592,6 @@ impl<const S: usize> Maze<S> {
         *self = self.calc_dist(max_pos.x, max_pos.y);
         //self.print();
         max = 0;
-        Self::all_pos().map(|pos| (pos, self.at_pos(pos))).reduce(|(_, cell),(pos, current)) |  );
         for current in Self::all_pos() {
             if self.at_pos(current).dist.unwrap_or_default() > max {
                 max_pos = current;
@@ -506,10 +621,19 @@ impl<const S: usize> Maze<S> {
         });
         self
     }
+
+    fn clear(mut self) -> Self {
+        self.start = Pos::new(0, 0);
+        self.end = Pos::new(S - 1, S - 1);
+        self.cells.iter_mut().flatten().for_each(|cell| {
+            *cell = Cell::blank();
+        });
+        self
+    }
 }
 
 fn main() {
-    let mut maze = Maze::<15>::default().sidewinder();
+    let mut maze = Maze::<20>::default().walker();
     let (pos1, pos2) = maze.calc_longest();
     println!("{pos1} -> {pos2}");
 
