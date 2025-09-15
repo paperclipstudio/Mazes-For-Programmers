@@ -9,6 +9,7 @@ struct Cell {
     right: bool,
     dist: Option<u32>,
     path: Option<bool>,
+    masked: bool,
 }
 
 #[derive(Copy, Clone, Default, PartialEq)]
@@ -45,6 +46,7 @@ impl Cell {
             right: false,
             dist: None,
             path: None,
+            masked: false,
         }
     }
 
@@ -54,6 +56,7 @@ impl Cell {
             right,
             dist: None,
             path: None,
+            masked: false,
         }
     }
 }
@@ -87,6 +90,7 @@ static CLOSED_CELL: Cell = Cell {
     right: false,
     dist: None,
     path: None,
+    masked: false,
 };
 
 impl<const S: usize> Default for Maze<S> {
@@ -119,6 +123,10 @@ impl<const S: usize> Maze<S> {
         &self.cells[pos.y][pos.x]
     }
 
+    fn at_pos_mut(&mut self, pos: Pos) -> &mut Cell {
+        &mut self.cells[pos.y][pos.x]
+    }
+
     fn at_pos_opt(&self, pos: Pos) -> Option<&Cell> {
         self.cells.get(pos.y)?.get(pos.x)
     }
@@ -137,24 +145,28 @@ impl<const S: usize> Maze<S> {
     }
 
     fn step(&self, x: usize, y: usize, direction: Direction) -> Option<(usize, usize)> {
-        match direction {
-            Direction::South => Some((x, y.checked_sub(1)?)),
-            Direction::West => Some((x.checked_sub(1)?, y)),
+        let new_location = match direction {
+            Direction::South => (x, y.checked_sub(1)?),
+            Direction::West => (x.checked_sub(1)?, y),
             Direction::North => {
                 if y >= S - 1 {
-                    None
+                    return None;
                 } else {
-                    Some((x, y + 1))
+                    (x, y + 1)
                 }
             }
             Direction::East => {
                 if x >= S - 1 {
-                    None
+                    return None;
                 } else {
-                    Some((x + 1, y))
+                    (x + 1, y)
                 }
             }
+        };
+        if self.at_pos(Pos::new(new_location.0, new_location.1)).masked {
+            return None;
         }
+        Some(new_location)
     }
 
     fn can_go(&self, x: usize, y: usize, direction: Direction) -> bool {
@@ -204,9 +216,15 @@ impl<const S: usize> Maze<S> {
                 print!("╟");
             }
             for x in 0..S {
-                let left = self.at(x, y).up;
-                let bottom = self.at(x, y).right;
-                let right = self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).up;
+                let masked_sw = self.at(x, y).masked;
+                let masked_se = self.at(x + 1, y).masked;
+                let masked_ne = self.at(x + 1, y + 1).masked;
+                let masked_se = self.at(x, y + 1).masked;
+
+                let left = self.at(x, y).up || (masked_se && masked_ne);
+                let bottom = self.at(x, y).right || (masked_se && masked_sw);
+                let right =
+                    self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).up || (masked_sw && masked_nw);
                 let top = self.at_opt(x, y + 1).unwrap_or(&CLOSED_CELL).right;
                 if y == S - 1 && x == S - 1 {
                     print!("═══╗")
@@ -249,10 +267,11 @@ impl<const S: usize> Maze<S> {
             for x in 0..S {
                 let dist: Option<u32> = self.at(x, y).dist;
                 let path: Option<bool> = self.at(x, y).path;
-                let dist_char: String = if has_path && path == Some(true) {
-                    //
-                    //
-                    //
+                let masked = self.at(x, y).masked;
+                let nexted_masked = self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).masked;
+                let dist_char: String = if masked {
+                    "  ".to_string()
+                } else if has_path && path == Some(true) {
                     if let Some(dist) = dist {
                         format!("{: >2}", dist)
                     } else {
@@ -266,7 +285,9 @@ impl<const S: usize> Maze<S> {
                     "  ".to_string()
                 };
 
-                if x == self.end.x && y == self.end.y && self.at(x, y).right {
+                if masked && nexted_masked {
+                    print!("    ");
+                } else if x == self.end.x && y == self.end.y && self.at(x, y).right {
                     print!("END ");
                 } else if x == self.end.x && y == self.end.y && x == S - 1 {
                     print!("END║");
@@ -277,7 +298,7 @@ impl<const S: usize> Maze<S> {
                     && self.can_go(x, y, Direction::East)
                 {
                     print!("STA ");
-                } else if x == self.start.x && y == self.start.y && y == S - 1 {
+                } else if x == self.start.x && y == self.start.y && x == S - 1 {
                     print!("STA║");
                 } else if x == self.start.x && y == self.start.y {
                     print!("STA│");
@@ -368,12 +389,11 @@ impl<const S: usize> Maze<S> {
         // Make once cell known
         let mut rng = rand::rng();
         known_cells[rng.random_range(0..S)][rng.random_range(0..S)] = true;
-        let mut limit = 0;
+
+        // Set all masked cells as known
+        Self::all_pos().for_each(|pos| known_cells[pos.x][pos.y] |= self.at_pos(pos).masked);
         while known_cells.as_flattened().iter().any(|x| !*x) {
-            limit += 1;
-            if limit > 20 {
-                //break;
-            }
+            // Get a random cell that is isn't known
             let sta = known_cells
                 .iter()
                 .flatten()
@@ -392,6 +412,10 @@ impl<const S: usize> Maze<S> {
                 let direction = ALL[rng.random_range(0..ALL.len())];
                 //dbg!(direction, i);
                 if let Some(next) = self.step(currentx, currenty, direction) {
+                    if self.at_pos(Pos::new(next.0, next.1)).masked {
+                        println!("Skipping!");
+                        continue;
+                    }
                     if let Some(index) = path.iter().position(|x| *x == next) {
                         path.truncate(index);
                     }
@@ -626,14 +650,53 @@ impl<const S: usize> Maze<S> {
         self.start = Pos::new(0, 0);
         self.end = Pos::new(S - 1, S - 1);
         self.cells.iter_mut().flatten().for_each(|cell| {
-            *cell = Cell::blank();
+            cell.up = false;
+            cell.right = false;
+            cell.path = None;
+            cell.dist = None;
         });
         self
     }
 }
 
 fn main() {
-    let mut maze = Maze::<20>::default().walker();
+    const SIZE: usize = 20;
+    let mut maze = Maze::<SIZE>::default();
+    for x in 3 * SIZE / 5..4 * SIZE / 5 {
+        for y in 3 * SIZE / 5..4 * SIZE / 5 {
+            let current = Pos::new(x, y);
+            maze.at_pos_mut(current).masked = true;
+        }
+    }
+
+    for x in SIZE / 5..2 * SIZE / 5 {
+        for y in 3 * SIZE / 5..4 * SIZE / 5 {
+            let current = Pos::new(x, y);
+            maze.at_pos_mut(current).masked = true;
+        }
+    }
+
+    for x in SIZE / 5..4 * SIZE / 5 {
+        for y in SIZE / 5..SIZE / 5 + 2 {
+            let current = Pos::new(x, y);
+            maze.at_pos_mut(current).masked = true;
+        }
+    }
+
+    for x in 2..4 {
+        for y in 6..8 {
+            let current = Pos::new(x, y);
+            maze.at_pos_mut(current).masked = true;
+        }
+    }
+
+    for x in 16..18 {
+        for y in 6..8 {
+            let current = Pos::new(x, y);
+            maze.at_pos_mut(current).masked = true;
+        }
+    }
+    maze = maze.walker();
     let (pos1, pos2) = maze.calc_longest();
     println!("{pos1} -> {pos2}");
 
