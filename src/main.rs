@@ -217,15 +217,16 @@ impl<const S: usize> Maze<S> {
             }
             for x in 0..S {
                 let masked_sw = self.at(x, y).masked;
-                let masked_se = self.at(x + 1, y).masked;
-                let masked_ne = self.at(x + 1, y + 1).masked;
-                let masked_se = self.at(x, y + 1).masked;
+                let masked_se = self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).masked;
+                let masked_ne = self.at_opt(x + 1, y + 1).unwrap_or(&CLOSED_CELL).masked;
+                let masked_nw = self.at_opt(x, y + 1).unwrap_or(&CLOSED_CELL).masked;
 
-                let left = self.at(x, y).up || (masked_se && masked_ne);
+                let left = self.at(x, y).up || (masked_nw && masked_sw);
                 let bottom = self.at(x, y).right || (masked_se && masked_sw);
                 let right =
-                    self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).up || (masked_sw && masked_nw);
-                let top = self.at_opt(x, y + 1).unwrap_or(&CLOSED_CELL).right;
+                    self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).up || (masked_se && masked_ne);
+                let top =
+                    self.at_opt(x, y + 1).unwrap_or(&CLOSED_CELL).right || (masked_nw && masked_ne);
                 if y == S - 1 && x == S - 1 {
                     print!("═══╗")
                 } else if y == S - 1 {
