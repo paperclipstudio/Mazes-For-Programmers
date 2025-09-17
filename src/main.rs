@@ -277,7 +277,7 @@ impl<const S: usize> Maze<S> {
                     && self.can_go(x, y, Direction::East)
                 {
                     print!("STA ");
-                } else if x == self.start.x && y == self.start.y && y == S - 1 {
+                } else if x == self.start.x && y == self.start.y && x == S - 1 {
                     print!("STA║");
                 } else if x == self.start.x && y == self.start.y {
                     print!("STA│");
