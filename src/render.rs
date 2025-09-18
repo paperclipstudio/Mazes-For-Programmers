@@ -1,9 +1,16 @@
+#![allow(dead_code)]
+
 use crate::maze;
-use image::RgbImage;
 use image::*;
 use maze::Direction;
 use maze::Maze;
 use maze::Pos;
+
+const BLUE: Rgba<u8> = Rgba([0, 0, 255, 255]);
+const RED: Rgba<u8> = Rgba([255, 0, 0, 255]);
+const GREEN: Rgba<u8> = Rgba([0, 255, 0, 255]);
+const WHITE: Rgba<u8> = Rgba([255, 255, 255, 255]);
+const BLACK: Rgba<u8> = Rgba([0, 0, 0, 255]);
 
 pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
     let _tee = ImageReader::open("images/tee.png")
@@ -22,54 +29,111 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
         .unwrap()
         .decode()
         .unwrap();
+    let line_boarder = ImageReader::open("images/line_boarder.png")
+        .unwrap()
+        .decode()
+        .unwrap();
+    let four_way = ImageReader::open("images/four_way.png")
+        .unwrap()
+        .decode()
+        .unwrap();
     let line_vert = imageops::rotate90(&line);
+    let line_boarder_vert = imageops::rotate90(&line_boarder);
     const SCALE: u32 = 50;
     const BOARDER: u32 = 5;
     const CELL: u32 = SCALE - BOARDER;
-    let mut image = RgbaImage::new(SCALE * S as u32, SCALE * S as u32);
+    let mut image = RgbaImage::new(SCALE * S as u32 + BOARDER, SCALE * S as u32 + BOARDER);
     for (_, _, pix) in image.enumerate_pixels_mut() {
         *pix = Rgba([255, 255, 255, 255]);
     }
+    // Corners
+    for pos in Maze::<S>::all_pos().filter(|pos| pos.x != S && pos.y != S) {
+        let cell_root = Pos::new(
+            pos.x * SCALE as usize + BOARDER as usize,
+            pos.y * SCALE as usize + BOARDER as usize,
+        );
+        image::imageops::overlay(
+            &mut image,
+            &four_way,
+            cell_root.x as i64 + CELL as i64,
+            cell_root.y as i64 + CELL as i64,
+        );
+    }
+
     for pos in Maze::<S>::all_pos() {
-        let cell_root = Pos::new(pos.x * SCALE as usize, pos.y * SCALE as usize);
+        let cell_root = Pos::new(
+            pos.x * SCALE as usize + BOARDER as usize,
+            pos.y * SCALE as usize + BOARDER as usize,
+        );
         if !maze.at_pos(pos).right {
             image::imageops::overlay(
                 &mut image,
                 &line_vert,
-                (pos.x as u32 * SCALE + CELL) as i64,
-                (pos.y as u32 * SCALE) as i64,
+                cell_root.x as i64 + CELL as i64,
+                cell_root.y as i64,
             );
-        } else if !maze.at_pos(pos).up {
+        }
+        if !maze.at_pos(pos).up {
             image::imageops::overlay(
                 &mut image,
                 &line,
-                (pos.x as u32 * SCALE) as i64,
-                (pos.y as u32 * SCALE + CELL) as i64,
+                cell_root.x as i64,
+                cell_root.y as i64 + CELL as i64,
             );
         }
         if pos == maze.start {
             for x in 0..CELL {
                 for y in 0..CELL {
-                    image.put_pixel(
-                        cell_root.x as u32 + x,
-                        cell_root.y as u32 + y,
-                        Rgba([0, 255, 0, 255]),
-                    );
+                    image.put_pixel(cell_root.x as u32 + x, cell_root.y as u32 + y, GREEN);
                 }
             }
         }
         if pos == maze.end {
             for x in 0..CELL {
                 for y in 0..CELL {
-                    image.put_pixel(
-                        cell_root.x as u32 + x,
-                        cell_root.y as u32 + y,
-                        Rgba([255, 0, 0, 255]),
-                    );
+                    image.put_pixel(cell_root.x as u32 + x, cell_root.y as u32 + y, RED);
                 }
             }
         }
     }
+    // BOARDER
+    for pos in Maze::<S>::all_pos().filter(|pos| pos.x == 0 || pos.x == S - 1) {
+        let cell_root = Pos::new(pos.x * SCALE as usize, pos.y * SCALE as usize);
+        if pos.x == 0 {
+            image::imageops::overlay(
+                &mut image,
+                &line_boarder_vert,
+                cell_root.x as i64,
+                cell_root.y as i64,
+            );
+        } else {
+            image::imageops::overlay(
+                &mut image,
+                &line_boarder_vert,
+                cell_root.x as i64 + SCALE as i64,
+                cell_root.y as i64,
+            );
+        }
+    }
+    for pos in Maze::<S>::all_pos().filter(|pos| pos.y == 0 || pos.y == S - 1) {
+        let cell_root = Pos::new(pos.x * SCALE as usize, pos.y * SCALE as usize);
+        if pos.y == 0 {
+            image::imageops::overlay(
+                &mut image,
+                &line_boarder,
+                cell_root.x as i64,
+                cell_root.y as i64,
+            )
+        } else {
+            image::imageops::overlay(
+                &mut image,
+                &line_boarder,
+                cell_root.x as i64,
+                cell_root.y as i64 + SCALE as i64,
+            );
+        }
+    }
+
     image = imageops::flip_horizontal(&image);
     imageops::rotate180(&image)
 }

@@ -4,7 +4,7 @@ use maze::Maze;
 use std::io::Cursor;
 
 fn main() {
-    let mut maze = Maze::<5>::default().walker();
+    let mut maze = Maze::<10>::default().walker();
     let (pos1, pos2) = maze.calc_longest();
     println!("{pos1} -> {pos2}");
 
