@@ -105,21 +105,15 @@ impl<const S: usize> Default for Maze<S> {
 
 impl<const S: usize> Maze<S> {
     pub fn set(&mut self, x: usize, y: usize, cell: Cell) {
-        //let index = y * S + x;
-        // println!("{x} {y} {index}**");
+        self.at_opt(x, y).expect("Looking to set cell at ({x},{y})");
         self.cells[y][x] = cell;
     }
     pub fn at_opt(&self, x: usize, y: usize) -> Option<&Cell> {
-        //let index = y * S + x;
-        // println!("{x} {y} {index}**");
-        if x < S && y < S {
-            Some(&self.cells[y][x])
-        } else {
-            None
-        }
+        self.cells.get(y)?.get(x)
     }
 
     pub fn at_pos(&self, pos: Pos) -> &Cell {
+        self.at_pos_opt(pos).expect("Looking to set cell at {pos}");
         &self.cells[pos.y][pos.x]
     }
 
@@ -638,12 +632,23 @@ impl<const S: usize> Maze<S> {
         self
     }
 
+    pub fn all_cells(&self) -> impl Iterator<Item = &Cell> {
+        self.cells.iter().flatten()
+    }
+
+    pub fn all_cells_mut(&mut self) -> impl Iterator<Item = &mut Cell> {
+        self.cells.iter_mut().flatten()
+    }
+
     pub fn clear(mut self) -> Self {
         self.start = Pos::new(0, 0);
         self.end = Pos::new(S - 1, S - 1);
-        self.cells.iter_mut().flatten().for_each(|cell| {
-            *cell = Cell::blank();
-        });
+        for cell in self.all_cells_mut() {
+            cell.up = false;
+            cell.right = false;
+            cell.path = None;
+            cell.dist = None;
+        }
         self
     }
 }

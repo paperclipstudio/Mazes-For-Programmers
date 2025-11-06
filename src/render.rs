@@ -11,6 +11,7 @@ const RED: Rgba<u8> = Rgba([255, 0, 0, 255]);
 const GREEN: Rgba<u8> = Rgba([0, 255, 0, 255]);
 const WHITE: Rgba<u8> = Rgba([255, 255, 255, 255]);
 const BLACK: Rgba<u8> = Rgba([0, 0, 0, 255]);
+const T_GRAY: Rgba<u8> = Rgba([128, 128, 128, 128]);
 
 pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
     let tee = ImageReader::open("images/tee.png")
@@ -102,7 +103,14 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
             pos.x * SCALE as usize + BOARDER as usize,
             pos.y * SCALE as usize + BOARDER as usize,
         );
-        if !maze.at_pos(pos).right {
+        let cell = maze.at_pos(pos);
+        if !cell.right
+            && (!maze
+                .at_pos_opt(pos.shift(Direction::East).unwrap())
+                .map(|c| c.masked)
+                .unwrap_or_default()
+                || !cell.masked)
+        {
             image::imageops::overlay(
                 &mut image,
                 &line_vert,
@@ -110,13 +118,26 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
                 cell_root.y as i64,
             );
         }
-        if !maze.at_pos(pos).up {
+        if !cell.up
+            && (!maze
+                .at_pos_opt(pos.shift(Direction::North).unwrap())
+                .map(|c| c.masked)
+                .unwrap_or_default()
+                || !cell.masked)
+        {
             image::imageops::overlay(
                 &mut image,
                 &line,
                 cell_root.x as i64,
                 cell_root.y as i64 + CELL as i64,
             );
+        }
+        if maze.at_pos(pos).masked || pos.x == pos.y {
+            for x in 10..CELL - 10 {
+                for y in 10..CELL - 10 {
+                    image.put_pixel(cell_root.x as u32 + x, cell_root.y as u32 + y, T_GRAY);
+                }
+            }
         }
         if pos == maze.start {
             for x in 0..CELL {
@@ -133,7 +154,7 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
             }
         }
     }
-    // BOARDER
+    // BORDER
     for pos in Maze::<S>::all_pos().filter(|pos| pos.x == 0 || pos.x == S - 1) {
         let cell_root = Pos::new(pos.x * SCALE as usize, pos.y * SCALE as usize);
         if pos.x == 0 {

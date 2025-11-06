@@ -1,5 +1,6 @@
 mod maze;
 mod render;
+use crate::maze::Pos;
 use maze::Maze;
 use std::io::Cursor;
 
@@ -11,7 +12,11 @@ fn main() {
         }
     }
 
-    let mut maze = maze.walker();
+    maze = maze.walker();
+    maze.all_cells_mut().for_each(|cell| {
+        cell.up = true;
+        cell.right = true;
+    });
     let (pos1, _) = maze.calc_longest();
     maze = maze.calc_dist(pos1);
     maze = maze.shortist_path();
