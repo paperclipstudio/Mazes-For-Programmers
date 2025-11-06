@@ -132,13 +132,6 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
                 cell_root.y as i64 + CELL as i64,
             );
         }
-        if maze.at_pos(pos).masked || pos.x == pos.y {
-            for x in 10..CELL - 10 {
-                for y in 10..CELL - 10 {
-                    image.put_pixel(cell_root.x as u32 + x, cell_root.y as u32 + y, T_GRAY);
-                }
-            }
-        }
         if pos == maze.start {
             for x in 0..CELL {
                 for y in 0..CELL {

@@ -141,7 +141,7 @@ impl<const S: usize> Maze<S> {
     pub fn pos_of(&self, cell: &Cell) -> Pos {
         Self::all_pos()
             // [TODO] Make a contant time method of getting pos from cell
-            .find(|pos| std::ptr::eq(&self.at_pos(*pos), &cell))
+            .find(|pos| std::ptr::eq(self.at_pos(*pos), cell))
             .unwrap()
     }
 
@@ -597,7 +597,7 @@ impl<const S: usize> Maze<S> {
         let mut start = Self::all_pos()
             .find(|pos| !self.at_pos(*pos).masked)
             .expect("Should be at lease one valid position");
-        for pass in 0..2 {
+        for pass in 0..3 {
             // Calculate distances from max
             *self = self.calc_dist(start);
             // Find cell farthest from max
