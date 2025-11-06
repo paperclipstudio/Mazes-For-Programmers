@@ -138,6 +138,14 @@ impl<const S: usize> Maze<S> {
         (0..S * S).map(|value| Pos::new(value % S, value / S))
     }
 
+    pub fn pos_of(&self, cell: &Cell) -> Pos {
+        Self::all_pos()
+            // [TODO] Make a contant time method of getting pos from cell
+            .find(|pos| std::ptr::eq(&self.at_pos(*pos), &cell))
+            .unwrap()
+    }
+
+    /* Steps into valid unmasked cell else None */
     fn step(&self, x: usize, y: usize, direction: Direction) -> Option<(usize, usize)> {
         let new_location = match direction {
             Direction::South => (x, y.checked_sub(1)?),
@@ -586,42 +594,25 @@ impl<const S: usize> Maze<S> {
     }
 
     pub fn calc_longest(&mut self) -> (Pos, Pos) {
-        *self = self.calc_dist(Pos::new(0, 0));
-        //self.print();
-        //        let mut max_x = 0;
-        //       let mut max_y = 0;
-        let mut max_pos = Pos::new(0, 0);
-        let mut max = 0;
-        for pos in Self::all_pos() {
-            if self.at_pos(pos).dist.unwrap_or_default() > max {
-                max_pos = pos;
-                max = self.at_pos(pos).dist.unwrap_or_default();
+        let mut start = Self::all_pos()
+            .find(|pos| !self.at_pos(*pos).masked)
+            .expect("Should be at lease one valid position");
+        for pass in 0..2 {
+            // Calculate distances from max
+            *self = self.calc_dist(start);
+            // Find cell farthest from max
+            start = self.pos_of(self.all_cells().fold(self.at_pos(start), |max, cell| {
+                if cell.dist > max.dist { cell } else { max }
+            }));
+            match pass {
+                0 => {}
+                1 => self.start = start,
+                2 => self.end = start,
+                _ => panic!("pass shouldn't get this large"),
             }
         }
-        println!("first pass: {max_pos}");
-        *self = self.calc_dist(max_pos);
-        //self.print();
-        max = 0;
-        for current in Self::all_pos() {
-            if self.at_pos(current).dist.unwrap_or_default() > max {
-                max_pos = current;
-                max = self.at_pos(current).dist.unwrap_or_default();
-            }
-        }
-        let start = max_pos;
-        self.start = start;
-        *self = self.calc_dist(max_pos);
-        //self.print();
-        max = 0;
-        for current in Self::all_pos() {
-            if self.at_pos(current).dist.unwrap_or_default() > max {
-                max_pos = current;
-                max = self.at_pos(current).dist.unwrap_or_default();
-            }
-        }
-        self.end = max_pos;
-        println!("Result: {start}, {max_pos} ");
-        (start, max_pos)
+        println!("Result: {}, {} ", self.start, self.end);
+        (self.start, self.end)
     }
 
     pub fn clear_path(mut self) -> Self {

@@ -1,6 +1,5 @@
 mod maze;
 mod render;
-use crate::maze::Pos;
 use maze::Maze;
 use std::io::Cursor;
 
