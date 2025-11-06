@@ -12,6 +12,7 @@ const GREEN: Rgba<u8> = Rgba([0, 255, 0, 255]);
 const WHITE: Rgba<u8> = Rgba([255, 255, 255, 255]);
 const BLACK: Rgba<u8> = Rgba([0, 0, 0, 255]);
 const T_GRAY: Rgba<u8> = Rgba([128, 128, 128, 128]);
+const GRAY: Rgba<u8> = Rgba([128, 128, 128, 255]);
 
 pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
     let tee = ImageReader::open("images/tee.png")
@@ -132,6 +133,13 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
                 cell_root.y as i64 + CELL as i64,
             );
         }
+        if cell.masked {
+            for x in 0..CELL {
+                for y in 0..CELL {
+                    image.put_pixel(cell_root.x as u32 + x, cell_root.y as u32 + y, GRAY);
+                }
+            }
+        }
         if pos == maze.start {
             for x in 0..CELL {
                 for y in 0..CELL {
@@ -139,6 +147,7 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
                 }
             }
         }
+
         if pos == maze.end {
             for x in 0..CELL {
                 for y in 0..CELL {

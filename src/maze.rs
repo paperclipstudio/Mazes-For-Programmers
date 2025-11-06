@@ -423,6 +423,7 @@ impl<const S: usize> Maze<S> {
             let current = (currentx, currenty);
             let mut path = vec![current];
             loop {
+                // [TODO] This will get stuck if it has a 1 cell wide masked dead end.
                 let direction = ALL[rng.random_range(0..ALL.len())];
                 //dbg!(direction, i);
                 if let Some(next) = self.step(currentx, currenty, direction) {
