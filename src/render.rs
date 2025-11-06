@@ -13,15 +13,15 @@ const WHITE: Rgba<u8> = Rgba([255, 255, 255, 255]);
 const BLACK: Rgba<u8> = Rgba([0, 0, 0, 255]);
 
 pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
-    let _tee = ImageReader::open("images/tee.png")
+    let tee = ImageReader::open("images/tee.png")
         .unwrap()
         .decode()
         .unwrap();
-    let _tip = ImageReader::open("images/tip.png")
+    let tip = ImageReader::open("images/tip.png")
         .unwrap()
         .decode()
         .unwrap();
-    let _corner = ImageReader::open("images/corner.png")
+    let corner = ImageReader::open("images/corner.png")
         .unwrap()
         .decode()
         .unwrap();
@@ -46,15 +46,52 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
     for (_, _, pix) in image.enumerate_pixels_mut() {
         *pix = Rgba([255, 255, 255, 255]);
     }
-    // Corners
+    // Intersections
     for pos in Maze::<S>::all_pos().filter(|pos| pos.x != S && pos.y != S) {
         let cell_root = Pos::new(
             pos.x * SCALE as usize + BOARDER as usize,
             pos.y * SCALE as usize + BOARDER as usize,
         );
+        let north = pos
+            .shift(Direction::North)
+            .and_then(|pos| maze.at_pos_opt(pos))
+            .map(|cell| cell.right)
+            .unwrap_or(false);
+        let east = pos
+            .shift(Direction::East)
+            .and_then(|pos| maze.at_pos_opt(pos))
+            .map(|cell| cell.up)
+            .unwrap_or(false);
+        let south = maze.at_pos(pos).right;
+        let west = maze.at_pos(pos).up;
+
+        let this_image = match (north, east, south, west) {
+            // None
+            (true, true, true, true) => continue,
+            // One
+            (false, true, true, true) => &tip,
+            (true, false, true, true) => &tip.rotate270(),
+            (true, true, false, true) => &tip.rotate180(),
+            (true, true, true, false) => &tip.rotate90(),
+            // Line
+            (true, false, true, false) => &line,
+            (false, true, false, true) => &line.rotate90(),
+            // Corner
+            (true, true, false, false) => &corner,
+            (false, true, true, false) => &corner.rotate270(),
+            (false, false, true, true) => &corner.rotate180(),
+            (true, false, false, true) => &corner.rotate90(),
+            // Tee
+            (true, false, false, false) => &tee,
+            (false, true, false, false) => &tee.rotate270(),
+            (false, false, true, false) => &tee.rotate180(),
+            (false, false, false, true) => &tee.rotate90(),
+            (false, false, false, false) => &four_way,
+        };
+
         image::imageops::overlay(
             &mut image,
-            &four_way,
+            this_image,
             cell_root.x as i64 + CELL as i64,
             cell_root.y as i64 + CELL as i64,
         );
