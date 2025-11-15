@@ -392,6 +392,38 @@ impl<const S: usize> Maze<S> {
         self
     }
 
+    pub fn hunt_and_kill(mut self) -> Self {
+        let mut _rng = rand::rng();
+        // Hold list of all visited cells
+        let mut visited_cells: [[bool; S]; S] = [[false; S]; S];
+        Self::all_pos().for_each(|pos| visited_cells[pos.x][pos.y] |= self.at_pos(pos).masked);
+        // Pick a first valid cells
+        let _current = self.all_pos().find(|pos| !self.at_pos(pos).masked);
+        visited_cells[_current.x][_current.y] = true;
+        
+        // Walk
+        loop {
+        let mut directions = ALL
+            .iter()
+            .filter(|direction| self.step(currentx, currenty, **direction).is_some())
+            .collect::<Vec<_>>();
+            directions.shuffle();
+
+
+
+            if directions.is_empty() {
+                break;
+            }
+        }
+        // Add path
+
+
+        directions.shuffle(&mut rng);
+
+
+        self
+    }
+
     pub fn walker(mut self) -> Self {
         self = self.clear();
         let mut known_cells: [[bool; S]; S] = [[false; S]; S];
@@ -435,7 +467,7 @@ impl<const S: usize> Maze<S> {
                 }
 
                 // [TODO] This will get stuck if it has a 1 cell wide masked dead end.
-                let direction = directions.get(0).unwrap();
+                let direction = directions.first().unwrap();
                 //dbg!(direction, i);
                 if let Some(next) = self.step(currentx, currenty, **direction) {
                     if let Some(index) = path.iter().position(|x| *x == next) {

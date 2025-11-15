@@ -3,7 +3,6 @@ mod render;
 use image::*;
 use maze::Maze;
 use std::io::Cursor;
-use std::env;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
