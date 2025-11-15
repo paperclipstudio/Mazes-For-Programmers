@@ -425,20 +425,19 @@ impl<const S: usize> Maze<S> {
             loop {
                 let mut directions = ALL
                     .iter()
-                    .filter(|direction| self.can_go(currentx, currenty, **direction))
+                    .filter(|direction| self.step(currentx, currenty, **direction).is_some())
                     .collect::<Vec<_>>();
                 directions.shuffle(&mut rng);
 
                 if directions.is_empty() {
-                    panic!("Dead end");
-                } else if directions.len() == 1 {
-                    panic!("Only one way");
+                    println!("at ({}, {}) deadend", currentx, currenty);
+                    break;
                 }
 
                 // [TODO] This will get stuck if it has a 1 cell wide masked dead end.
-                let direction = ALL[rng.random_range(0..ALL.len())];
+                let direction = directions.get(0).unwrap();
                 //dbg!(direction, i);
-                if let Some(next) = self.step(currentx, currenty, direction) {
+                if let Some(next) = self.step(currentx, currenty, **direction) {
                     if let Some(index) = path.iter().position(|x| *x == next) {
                         path.truncate(index);
                     }
