@@ -3,9 +3,18 @@ mod render;
 use image::*;
 use maze::Maze;
 use std::io::Cursor;
+use std::env;
 
 fn main() {
-    let tee = ImageReader::open("./images/petershipmask.png")
+    let args: Vec<String> = std::env::args().collect();
+    let image_path = if args.len() == 2 {
+        args.get(1).unwrap()
+    } else {
+        "./images/deadends.png"
+    };
+
+
+    let tee = ImageReader::open(image_path)
         .unwrap()
         .decode()
         .unwrap()
