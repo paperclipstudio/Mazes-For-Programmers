@@ -19,7 +19,8 @@ fn main() {
         .unwrap()
         .rotate180()
         .fliph();
-    let mut maze = Maze::<25>::default();
+    let mut maze = Maze::<5>::default();
+    /*
     for x in 0..25 {
         for y in 0..25 {
             let luma = tee.grayscale().get_pixel(x as u32, y as u32).to_luma();
@@ -27,20 +28,22 @@ fn main() {
                 maze.at_mut(x, y).masked = true;
             }
         }
-    }
+    } 
+*/
 
-    maze = maze.walker();
-    let (pos1, _) = maze.calc_longest();
+    //maze = maze.walker();
+    //let (pos1, _) = maze.calc_longest();
 
-    maze = maze.calc_dist(pos1);
-    maze = maze.shortist_path();
+    //maze = maze.calc_dist(pos1);
+    //maze = maze.shortist_path();
     //maze = maze.clear_path();
+    maze = maze.hunt_and_kill();
     maze.print();
-    let image = render::make_image(&maze);
-    image.save("output.png").unwrap();
+    //let image = render::make_image(&maze);
+    //image.save("output.png").unwrap();
 
-    let mut bytes: Vec<u8> = Vec::new();
-    image
-        .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
-        .unwrap();
+    //let mut bytes: Vec<u8> = Vec::new();
+    //image
+     //   .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
+      //  .unwrap();
 }
