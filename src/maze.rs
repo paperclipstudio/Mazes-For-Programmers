@@ -168,7 +168,7 @@ impl<const S: usize> Maze<S> {
 
     /* Steps into valid unmasked cell else None */
     fn step(&self, x: usize, y: usize, direction: Direction) -> Option<(usize, usize)> {
-        let pos = self.step_pos(Pos::new(x,y), direction)?;
+        let pos = self.step_pos(Pos::new(x, y), direction)?;
         Some((pos.x, pos.y))
     }
 
@@ -397,61 +397,101 @@ impl<const S: usize> Maze<S> {
         let mut rng = rand::rng();
         // Hold list of all visited cells
         let mut visited_cells: [[bool; S]; S] = [[false; S]; S];
+
         Self::all_pos().for_each(|pos| visited_cells[pos.x][pos.y] |= self.at_pos(pos).masked);
-        // Pick a first valid cells
-        let mut current = Self::all_pos().find(|pos| !self.at_pos(*pos).masked).unwrap();
-        visited_cells[current.x][current.y] = true;
-        let path_start = current;
-        let mut path_steps :Vec<Pos>= vec!();
-        let mut path_dirs: Vec<Direction> = vec!();
+        // While there is another valid cell
+        while visited_cells.iter().flatten().any(|visited| !visited) {
+            let mut starting = None;
+            for pos in Self::all_pos() {
+                if self.at_pos(pos).masked {
+                    continue;
+                }
+                if visited_cells[pos.x][pos.y] {
+                    continue;
+                }
+                let mut visited_neighbours: Vec<_> = ALL
+                    .iter()
+                    .filter_map(|dir| Some((dir, pos.shift(*dir)?)))
+                    .filter(|(_, pos)| self.at_pos_opt(*pos).is_some())
+                    .filter(|(_, pos)| visited_cells[pos.x][pos.y])
+                    .collect();
+                visited_neighbours.shuffle(&mut rng);
+                match visited_neighbours.first() {
+                    None => continue, // No visited neighbours so we skip
+                    Some((step, from)) => match step {
+                        Direction::North => self.at_pos_mut(pos).up = true,
+                        Direction::East => self.at_pos_mut(pos).right = true,
+                        Direction::South => self.at_pos_mut(*from).up = true,
+                        Direction::West => self.at_pos_mut(*from).up = true,
+                    },
+                }
+                starting = Some(pos);
 
-        // Walk
-        loop {
-            println!("LEN: {}", path_steps.len());
-            for i in path_steps.iter() {
-                print!(" {:}", i);
-            }
-            println!();
-            for i in path_dirs.iter() {
-                print!(" {:?}", i);
-            }
-            println!();
-            let mut directions = ALL
-                .iter()
-                .filter(|direction| self.step(current.x, current.y, **direction).is_some())
-                .map(|direction| (direction, self.step_pos(current, *direction).unwrap()))
-                .filter(|(_, pos)| !visited_cells[pos.x][pos.y])
-                .collect::<Vec<_>>();
-            directions.shuffle(&mut rng);
-
-            if let Some((dir, pos) ) = directions.first() {
-                visited_cells[pos.x][pos.y] = true;
-                path_steps.push(*pos);
-                path_dirs.push(**dir);
-                current = *pos;
-            } else {
-                // We have painted ourselves into a corner.
-                // We then move onto the next path
                 break;
             }
-        }
+            assert!(starting.is_some());
+            let mut current = starting.expect("Fails if Maze is zero sized");
+            // Pick a first valid cells
+            visited_cells[current.x][current.y] = true;
+            let path_start = current;
+            let mut path_steps: Vec<Pos> = vec![];
+            let mut path_dirs: Vec<Direction> = vec![];
 
-        { // Add path
-            let mut path_current = path_start;
-            for (pos, dir) in path_steps.iter().zip(path_dirs) {
-    if self.at_pos_opt(path_current).is_none() {
+            // Walk
+            loop {
+                println!("LEN: {}", path_steps.len());
+                for i in path_steps.iter() {
+                    print!(" {:}", i);
+                }
+                println!();
+                for i in path_dirs.iter() {
+                    print!(" {:?}", i);
+                }
+                println!();
+                let mut directions = ALL
+                    .iter()
+                    .filter(|direction| self.step(current.x, current.y, **direction).is_some())
+                    .map(|direction| (direction, self.step_pos(current, *direction).unwrap()))
+                    .filter(|(_, pos)| !visited_cells[pos.x][pos.y])
+                    .collect::<Vec<_>>();
+                directions.shuffle(&mut rng);
+
+                if let Some((dir, pos)) = directions.first() {
+                    visited_cells[pos.x][pos.y] = true;
+                    path_steps.push(*pos);
+                    path_dirs.push(**dir);
+                    current = *pos;
+                } else {
+                    // We have painted ourselves into a corner.
+                    // We then move onto the next path
                     break;
                 }
-                match dir {
-                    Direction::North => self.at_pos_mut(path_current).up = true,
-                    Direction::West => self.at_pos_mut(path_current.shift(Direction::West).unwrap()).right = true,
-                    Direction::South => self.at_pos_mut(path_current.shift(Direction::South).unwrap()).up = true,
-                    Direction::East => self.at_pos_mut(path_current).right = true,
-                }
-                println!("{path_current}");
-                path_current = *pos;
             }
-        } // Add path
+
+            {
+                // Add path
+                let mut path_current = path_start;
+                for (pos, dir) in path_steps.iter().zip(path_dirs) {
+                    if self.at_pos_opt(path_current).is_none() {
+                        break;
+                    }
+                    match dir {
+                        Direction::North => self.at_pos_mut(path_current).up = true,
+                        Direction::West => {
+                            self.at_pos_mut(path_current.shift(Direction::West).unwrap())
+                                .right = true
+                        }
+                        Direction::South => {
+                            self.at_pos_mut(path_current.shift(Direction::South).unwrap())
+                                .up = true
+                        }
+                        Direction::East => self.at_pos_mut(path_current).right = true,
+                    }
+                    println!("{path_current}");
+                    path_current = *pos;
+                }
+            } // Add path
+        }
         self
     }
 
