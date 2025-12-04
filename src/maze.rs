@@ -12,7 +12,7 @@ pub struct Cell {
     pub masked: bool,
 }
 
-#[derive(Copy, Clone, Default, PartialEq)]
+#[derive(Copy, Clone, Default, PartialEq, Debug)]
 pub struct Pos {
     pub x: usize,
     pub y: usize,
@@ -393,44 +393,63 @@ impl<const S: usize> Maze<S> {
         self
     }
 
+    fn hunt_and_kill_get_next_start(
+        &self,
+        visited_cells: [[bool; S]; S],
+        _rng: &mut ThreadRng,
+    ) -> Vec<(Direction, Pos)> {
+        let mut nexts = vec![];
+        for pos in Self::all_pos() {
+            if self.at_pos(pos).masked {
+                continue;
+            }
+            if visited_cells[pos.x][pos.y] {
+                continue;
+            }
+            let mut visited_neighbours: Vec<_> = ALL
+                .iter()
+                .filter_map(|dir| Some((dir, pos.shift(*dir)?)))
+                .filter(|(_, pos)| self.at_pos_opt(*pos).is_some())
+                .filter(|(_, pos)| visited_cells[pos.x][pos.y])
+                .collect();
+            visited_neighbours.shuffle(_rng);
+            match visited_neighbours.first() {
+                None => {}
+                Some((dir, _)) => {
+                    nexts.push((**dir, pos));
+                }
+            }
+        }
+        nexts
+    }
+
     pub fn hunt_and_kill(mut self) -> Self {
         let mut rng = rand::rng();
         // Hold list of all visited cells
         let mut visited_cells: [[bool; S]; S] = [[false; S]; S];
+        assert!(S > 0);
+        visited_cells[0][0] = true;
 
         Self::all_pos().for_each(|pos| visited_cells[pos.x][pos.y] |= self.at_pos(pos).masked);
         // While there is another valid cell
         while visited_cells.iter().flatten().any(|visited| !visited) {
-            let mut starting = None;
-            for pos in Self::all_pos() {
-                if self.at_pos(pos).masked {
-                    continue;
-                }
-                if visited_cells[pos.x][pos.y] {
-                    continue;
-                }
-                let mut visited_neighbours: Vec<_> = ALL
-                    .iter()
-                    .filter_map(|dir| Some((dir, pos.shift(*dir)?)))
-                    .filter(|(_, pos)| self.at_pos_opt(*pos).is_some())
-                    .filter(|(_, pos)| visited_cells[pos.x][pos.y])
-                    .collect();
-                visited_neighbours.shuffle(&mut rng);
-                match visited_neighbours.first() {
-                    None => continue, // No visited neighbours so we skip
-                    Some((step, from)) => match step {
-                        Direction::North => self.at_pos_mut(pos).up = true,
-                        Direction::East => self.at_pos_mut(pos).right = true,
-                        Direction::South => self.at_pos_mut(*from).up = true,
-                        Direction::West => self.at_pos_mut(*from).up = true,
-                    },
-                }
-                starting = Some(pos);
+            let starts = self.hunt_and_kill_get_next_start(visited_cells, &mut rng);
+            let starting = starts.first().unwrap();
 
-                break;
+            println!("{:?}", starting);
+            match starting.0 {
+                Direction::South => {
+                    self.at_pos_mut(starting.1.shift(Direction::South).unwrap())
+                        .up = true
+                }
+                Direction::North => self.at_pos_mut(starting.1).up = true,
+                Direction::East => self.at_pos_mut(starting.1).right = true,
+                Direction::West => {
+                    self.at_pos_mut(starting.1.shift(Direction::West).unwrap())
+                        .right = true
+                }
             }
-            assert!(starting.is_some());
-            let mut current = starting.expect("Fails if Maze is zero sized");
+            let mut current = starting.1;
             // Pick a first valid cells
             visited_cells[current.x][current.y] = true;
             let path_start = current;
@@ -756,5 +775,63 @@ impl<const S: usize> Maze<S> {
             cell.dist = None;
         }
         self
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_hunt_and_kill_get_next_start_single() {
+        let maze: Maze<4> = Maze::default();
+        let mut rng = rand::rng();
+        let mut touched: [[bool; 4]; 4] = [[false; 4]; 4];
+        touched[2][2] = true;
+        let next = maze.hunt_and_kill_get_next_start(touched, &mut rng);
+        dbg!(&next);
+        assert_eq!(next.len(), 4);
+        assert!(next.iter().any(|x| x.1.x == 1 && x.1.y == 2));
+        assert!(next.iter().any(|x| x.1.x == 3 && x.1.y == 2));
+        assert!(next.iter().any(|x| x.1.x == 2 && x.1.y == 1));
+        assert!(next.iter().any(|x| x.1.x == 2 && x.1.y == 3));
+    }
+
+    #[test]
+    fn test_hunt_and_kill_get_next_start_dual() {
+        let maze: Maze<4> = Maze::default();
+        let mut rng = rand::rng();
+        let mut touched: [[bool; 4]; 4] = [[false; 4]; 4];
+        touched[1][2] = true;
+        touched[3][2] = true;
+
+        let correct = [
+            [false, false, true, false],
+            [false, true, false, true],
+            [false, false, true, false],
+            [false, true, false, true],
+        ];
+        let _correct = [
+            [None, None, Some(Direction::North), None],
+            [None, Some(Direction::East), None, Some(Direction::North)],
+            [None, None, Some(Direction::North), None],
+            [None, Some(Direction::North), None, Some(Direction::North)],
+        ];
+        let next = maze
+            .hunt_and_kill_get_next_start(touched, &mut rng)
+            .iter()
+            .map(|(_, pos)| *pos)
+            .collect::<Vec<_>>();
+        assert_eq!(next.len(), 6);
+        for pos in Maze::<4>::all_pos() {
+            if correct[pos.x][pos.y] {
+                assert!(next.contains(&pos))
+            } else {
+                assert!(!next.contains(&pos))
+            }
+        }
+        let next = maze.hunt_and_kill_get_next_start(touched, &mut rng);
+        dbg!(&next);
+        assert!(false);
     }
 }
