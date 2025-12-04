@@ -2,8 +2,9 @@
 use std::fmt::Display;
 
 use rand::prelude::*;
+use rand_chacha::ChaCha8Rng;
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct Cell {
     pub up: bool,
     pub right: bool,
@@ -114,6 +115,13 @@ impl<const S: usize> Default for Maze<S> {
 }
 
 impl<const S: usize> Maze<S> {
+    pub fn size() -> usize {
+        return S;
+    }
+
+    pub fn self_size(&self) -> usize {
+        return S;
+    }
     pub fn set(&mut self, x: usize, y: usize, cell: Cell) {
         self.at_opt(x, y).expect("Looking to set cell at ({x},{y})");
         self.cells[y][x] = cell;
@@ -170,6 +178,10 @@ impl<const S: usize> Maze<S> {
     fn step(&self, x: usize, y: usize, direction: Direction) -> Option<(usize, usize)> {
         let pos = self.step_pos(Pos::new(x, y), direction)?;
         Some((pos.x, pos.y))
+    }
+
+    pub fn can_go_pos(&self, pos: Pos, direction: Direction) -> bool {
+        self.can_go(pos.x, pos.y, direction)
     }
 
     pub fn can_go(&self, x: usize, y: usize, direction: Direction) -> bool {
@@ -396,7 +408,7 @@ impl<const S: usize> Maze<S> {
     fn hunt_and_kill_get_next_start(
         &self,
         visited_cells: [[bool; S]; S],
-        _rng: &mut ThreadRng,
+        _rng: &mut ChaCha8Rng,
     ) -> Vec<(Direction, Pos)> {
         let mut nexts = vec![];
         for pos in Self::all_pos() {
@@ -423,8 +435,12 @@ impl<const S: usize> Maze<S> {
         nexts
     }
 
-    pub fn hunt_and_kill(mut self) -> Self {
-        let mut rng = rand::rng();
+    pub fn hunt_and_kill(self) -> Self {
+        let rng = ChaCha8Rng::from_os_rng();
+        self.hunt_and_kill_seed(rng)
+    }
+
+    pub fn hunt_and_kill_seed(mut self, mut rng: ChaCha8Rng) -> Self {
         // Hold list of all visited cells
         let mut visited_cells: [[bool; S]; S] = [[false; S]; S];
         assert!(S > 0);
@@ -458,15 +474,15 @@ impl<const S: usize> Maze<S> {
 
             // Walk
             loop {
-                println!("LEN: {}", path_steps.len());
-                for i in path_steps.iter() {
-                    print!(" {:}", i);
-                }
-                println!();
-                for i in path_dirs.iter() {
-                    print!(" {:?}", i);
-                }
-                println!();
+                // println!("LEN: {}", path_steps.len());
+                // for i in path_steps.iter() {
+                //     print!(" {:}", i);
+                // }
+                // println!();
+                // for i in path_dirs.iter() {
+                //     print!(" {:?}", i);
+                // }
+                // println!();
                 let mut directions = ALL
                     .iter()
                     .filter(|direction| self.step(current.x, current.y, **direction).is_some())
@@ -506,7 +522,7 @@ impl<const S: usize> Maze<S> {
                         }
                         Direction::East => self.at_pos_mut(path_current).right = true,
                     }
-                    println!("{path_current}");
+                    //                    println!("{path_current}");
                     path_current = *pos;
                 }
             } // Add path
@@ -832,6 +848,41 @@ mod test {
         }
         let next = maze.hunt_and_kill_get_next_start(touched, &mut rng);
         dbg!(&next);
-        assert!(false);
+    }
+
+    #[test]
+    fn test_hunt_and_kill_perfect_maze() {
+        for _ in 0..100 {
+            let maze: Maze<4> = Maze::default().hunt_and_kill().calc_dist(Pos::new(0, 0));
+            for pos in Maze::<4>::all_pos() {
+                let cell = maze.at_pos(pos);
+                assert!(cell.dist.is_some());
+                let cell_dist = match cell.dist {
+                    None => panic!(),
+                    Some(dist) => dist,
+                };
+                let number_of_routes_to_start = ALL
+                    .iter()
+                    .filter(|dir| maze.can_go_pos(pos, **dir))
+                    .filter_map(|dir| pos.shift(*dir))
+                    .filter_map(|pos| maze.at_pos(pos).dist)
+                    .filter(|dist| {
+                        if cell_dist == 0 {
+                            false
+                        } else {
+                            *dist == cell_dist - 1
+                        }
+                    })
+                    .count();
+                match number_of_routes_to_start {
+                    0 => assert!(pos == Pos::new(0, 0)),
+                    1 => {} // This is expexted,
+                    _ => {
+                        maze.print();
+                        panic!("Not perfect!{pos} {cell:?}")
+                    }
+                }
+            }
+        }
     }
 }
