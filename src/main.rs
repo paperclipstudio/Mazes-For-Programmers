@@ -19,15 +19,17 @@ fn main() {
         .unwrap()
         .rotate180()
         .fliph();
-    let mut maze = Maze::<10>::default();
-    for x in 0..maze.self_size() {
-        for y in 0..maze.self_size() {
+    let mut maze = Maze::<50>::default();
+    for x in 0..maze.self_size().min(tee.width() as usize) {
+        for y in 0..maze.self_size().min(tee.height() as usize) {
             let luma = tee.grayscale().get_pixel(x as u32, y as u32).to_luma();
             if luma.0[0] < 128 {
-                //maze.at_mut(x, y).masked = true;
+                maze.at_mut(x, y).masked = true;
             }
         }
     }
+    maze.all_cells_mut().for_each(|x| x.masked=false);
+    maze = maze.hunt_and_kill();
 
     //maze = maze.walker();
     //maze = maze.hunt_and_kill(Some());
