@@ -133,6 +133,15 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
                 cell_root.y as i64 + CELL as i64,
             );
         }
+
+        if let Some(true) = cell.path {
+            for x in 0..CELL {
+                for y in 0..CELL {
+                    image.put_pixel(cell_root.x as u32 + x, cell_root.y as u32 + y, BLUE);
+                }
+            }
+        }
+
         if cell.masked {
             for x in 0..CELL {
                 for y in 0..CELL {
@@ -155,6 +164,7 @@ pub fn make_image<const S: usize>(maze: &Maze<S>) -> RgbaImage {
                 }
             }
         }
+
     }
     // BORDER
     for pos in Maze::<S>::all_pos().filter(|pos| pos.x == 0 || pos.x == S - 1) {
@@ -226,7 +236,7 @@ pub fn print<const S: usize>(maze: &Maze<S>) {
                 }
             } else if x == S - 1 {
                 if left {
-                    print!("   ║");
+                    print!("   ║asdf");
                 } else {
                     print!("───╢");
                 }
@@ -253,7 +263,7 @@ pub fn print<const S: usize>(maze: &Maze<S>) {
         }
 
         println!();
-        print!("║");
+        print!("║A");
         for x in 0..S {
             let dist: Option<u32> = maze.at(x, y).dist;
             let path: Option<bool> = maze.at(x, y).path;
@@ -267,9 +277,11 @@ pub fn print<const S: usize>(maze: &Maze<S>) {
                     "<>".to_string()
                 }
             } else if has_path {
-                "  ".to_string()
+                "AA".to_string()
             } else if dist.is_some() {
                 format!("{: >2}", dist.unwrap())
+            } else if maze.at(x,y).masked {
+                String::from("><")
             } else {
                 "  ".to_string()
             };
@@ -279,7 +291,7 @@ pub fn print<const S: usize>(maze: &Maze<S>) {
             } else if x == maze.end.x && y == maze.end.y && x == S - 1 {
                 print!("END║");
             } else if x == maze.end.x && y == maze.end.y {
-                print!("END│");
+                print!("ENDA│");
             } else if x == maze.start.x && y == maze.start.y && maze.can_go(x, y, Direction::East) {
                 print!("STA ");
             } else if x == maze.start.x && y == maze.start.y && y == S - 1 {

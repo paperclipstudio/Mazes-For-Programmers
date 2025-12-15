@@ -288,10 +288,9 @@ impl<const S: usize> Maze<S> {
                 let path: Option<bool> = self.at(x, y).path;
                 let masked = self.at(x, y).masked;
 
-                let nexted_masked = self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).masked;
-
+                let nexted_masked = self.at_opt(x + 1, y).unwrap_or(&CLOSED_CELL).masked && false;
                 let dist_char: String = if masked {
-                    "  ".to_string()
+                    "><".to_string()
                 } else if has_path && path == Some(true) {
                     if let Some(dist) = dist {
                         format!("{: >2}", dist)
@@ -307,7 +306,7 @@ impl<const S: usize> Maze<S> {
                 };
 
                 if masked && nexted_masked {
-                    print!("    ");
+                    print!("   ");
                 } else if x == self.end.x && y == self.end.y && self.at(x, y).right {
                     print!("END ");
                 } else if x == self.end.x && y == self.end.y && x == S - 1 {
@@ -436,11 +435,11 @@ impl<const S: usize> Maze<S> {
     }
 
     pub fn hunt_and_kill(self) -> Self {
-        let rng = ChaCha8Rng::from_os_rng();
-        self.hunt_and_kill_seed(rng)
+        let mut rng = ChaCha8Rng::from_os_rng();
+        self.hunt_and_kill_seed(&mut rng)
     }
 
-    pub fn hunt_and_kill_seed(mut self, mut rng: ChaCha8Rng) -> Self {
+    pub fn hunt_and_kill_seed(mut self, rng:  &mut ChaCha8Rng) -> Self {
         // Hold list of all visited cells
         let mut visited_cells: [[bool; S]; S] = [[false; S]; S];
         assert!(S > 0);
@@ -449,10 +448,10 @@ impl<const S: usize> Maze<S> {
         Self::all_pos().for_each(|pos| visited_cells[pos.x][pos.y] |= self.at_pos(pos).masked);
         // While there is another valid cell
         while visited_cells.iter().flatten().any(|visited| !visited) {
-            let starts = self.hunt_and_kill_get_next_start(visited_cells, &mut rng);
+            let starts = self.hunt_and_kill_get_next_start(visited_cells, rng);
             let starting = starts.first().unwrap();
 
-            println!("{:?}", starting);
+//            println!("{:?}", starting);
             match starting.0 {
                 Direction::South => {
                     self.at_pos_mut(starting.1.shift(Direction::South).unwrap())
@@ -489,7 +488,7 @@ impl<const S: usize> Maze<S> {
                     .map(|direction| (direction, self.step_pos(current, *direction).unwrap()))
                     .filter(|(_, pos)| !visited_cells[pos.x][pos.y])
                     .collect::<Vec<_>>();
-                directions.shuffle(&mut rng);
+                directions.shuffle(rng);
 
                 if let Some((dir, pos)) = directions.first() {
                     visited_cells[pos.x][pos.y] = true;
@@ -761,7 +760,7 @@ impl<const S: usize> Maze<S> {
                 _ => panic!("pass shouldn't get this large"),
             }
         }
-        println!("Result: {}, {} ", self.start, self.end);
+     //   println!("Result: {}, {} ", self.start, self.end);
         (self.start, self.end)
     }
 
