@@ -5,8 +5,6 @@ use maze::Maze;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
-use crate::maze::Pos;
-
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let image_path = if args.len() == 2 {
@@ -37,7 +35,7 @@ fn main() {
     }
     let mut max = 0;
     let mut max_i = 0;
-    for i in 0..500{
+    for i in 0..100 {
     let mut rng = ChaCha8Rng::seed_from_u64(i);
         let mut tmp = maze.hunt_and_kill_seed(&mut rng);
         let start = tmp.calc_longest();
@@ -51,22 +49,28 @@ fn main() {
     }
 
     let mut rng = ChaCha8Rng::seed_from_u64(max_i);
-    maze = maze.hunt_and_kill_seed(&mut rng);
-    let (start, end) = maze.calc_longest();
-maze.all_cells_mut().for_each(|x|x.masked ^= true);
+maze = maze.hunt_and_kill_seed(&mut rng);
+ let (start, end) = maze.calc_longest();
+    maze.start = start;
+    maze.end = end;
+    maze.all_cells_mut().for_each(|x|x.masked ^= true);
     // let rng = ChaCha8Rng::seed_from_u64(12345);
- maze = maze.hunt_and_kill_seed(&mut rng);
+    maze.start = maze::Pos::default();
+    maze = maze.hunt_and_kill_seed(&mut rng);
 //maze.all_cells_mut().for_each(|x|x.masked ^= true);
     // maze.all_cells_mut().for_each(|x|x.masked ^= true);
     // //maze = maze.walker();
     //maze = maze.hunt_and_kill(Some());
     // maze.all_cells_mut().for_each(|x|x.masked ^= true);
 
-    maze = maze.calc_dist(start);
+    // maze.end = end;
+    maze.start = start;
     maze.end = end;
+    
+    maze = maze.calc_dist(start);
     maze = maze.shortist_path();
     maze = maze.clear_path();
-maze.all_cells_mut().for_each(|x|x.masked = false);
+    maze.all_cells_mut().for_each(|x|x.masked = false);
     maze.print();
     let image = render::make_image(&maze);
     image.save("output.png").unwrap();

@@ -4,6 +4,11 @@ use std::fmt::Display;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 
+enum PerfectError {
+    NotAllLinked,
+    Looped,
+}
+
 #[derive(Copy, Clone, Default, Debug)]
 pub struct Cell {
     pub up: bool,
@@ -116,11 +121,11 @@ impl<const S: usize> Default for Maze<S> {
 
 impl<const S: usize> Maze<S> {
     pub fn size() -> usize {
-        return S;
+        S
     }
 
     pub fn self_size(&self) -> usize {
-        return S;
+        S
     }
     pub fn set(&mut self, x: usize, y: usize, cell: Cell) {
         self.at_opt(x, y).expect("Looking to set cell at ({x},{y})");
@@ -404,6 +409,37 @@ impl<const S: usize> Maze<S> {
         self
     }
 
+    fn connect_all(self) -> Self {
+        /*
+        self.all_cells_mut().for_each(|x|x.dist = None);
+        let start = Pos::default();
+        self.calc_dist(start);
+        let mut rng = ThreadRng::default();
+        while self.all_cells().any(|x|x.dist.is_none()) {
+            let mut current = start;
+        let target =  self.all_cells().any(|x|x.dist.is_none()) {
+            let target = self.all_cells()
+            let mut directions = ALL;
+            directions.shuffle(&mut rng);
+
+            let step = directions.iter().filter_map(|x| current.shift(*x)).next().unwrap();
+
+            let to = self.at_pos_opt(step).unwrap();
+            
+
+
+
+
+
+
+
+        self.calc_dist(start);
+        }
+*/
+        self
+
+    }
+
     fn hunt_and_kill_get_next_start(
         &self,
         visited_cells: [[bool; S]; S],
@@ -421,6 +457,8 @@ impl<const S: usize> Maze<S> {
                 .iter()
                 .filter_map(|dir| Some((dir, pos.shift(*dir)?)))
                 .filter(|(_, pos)| self.at_pos_opt(*pos).is_some())
+                .filter(|(_, pos)| !self.at_pos(*pos).masked)
+                .filter(|(_, pos)| visited_cells[pos.x][pos.y])
                 .filter(|(_, pos)| visited_cells[pos.x][pos.y])
                 .collect();
             visited_neighbours.shuffle(_rng);
@@ -439,19 +477,70 @@ impl<const S: usize> Maze<S> {
         self.hunt_and_kill_seed(&mut rng)
     }
 
-    pub fn hunt_and_kill_seed(mut self, rng:  &mut ChaCha8Rng) -> Self {
+    fn is_perfect_maze(&self) -> bool {
+        let mut maze = *self;
+        maze = maze.calc_dist(Pos::default());
+        if Maze::<S>::all_pos().any(|x| maze.at_pos(x).dist.is_none()) {
+            let xs = Maze::<S>::all_pos()
+                .filter(|x| *x != Pos::default())
+                .filter(|x| maze.at_pos(*x).dist.is_none());
+            let mut any: bool = false;
+            for _x in xs {
+                any = true;
+                //                eprintln!("Disconnected at {x}");
+            }
+            if any {
+                return false;
+            }
+        }
+        maze.at_pos(Pos::default());
+        for pos in Maze::<S>::all_pos() {
+            let dist = maze.at_pos(pos).dist.unwrap();
+            let mut one_less = 0;
+            for direction in ALL {
+                if !maze.can_go_pos(pos, direction) {
+                    continue;
+                }
+                let nigh_dist = match pos.shift(direction) {
+                    None => continue,
+                    Some(pos) => maze.at_pos(pos).dist.unwrap(),
+                };
+                if dist == 0 {
+                    // Start node
+                    continue;
+                }
+                if nigh_dist == dist - 1 {
+                    one_less += 1;
+                }
+            }
+            if one_less != 1 && pos != maze.start {
+                eprintln!("Loop at {pos}");
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn hunt_and_kill_seed(mut self, rng: &mut ChaCha8Rng) -> Self {
         // Hold list of all visited cells
         let mut visited_cells: [[bool; S]; S] = [[false; S]; S];
         assert!(S > 0);
-        visited_cells[0][0] = true;
+        let start_pos = Self::all_pos().find(|x| !self.at_pos(*x).masked).unwrap();
+        visited_cells[start_pos.x][start_pos.y] = true;
 
         Self::all_pos().for_each(|pos| visited_cells[pos.x][pos.y] |= self.at_pos(pos).masked);
         // While there is another valid cell
         while visited_cells.iter().flatten().any(|visited| !visited) {
+            //            println!("{:?}"
             let starts = self.hunt_and_kill_get_next_start(visited_cells, rng);
-            let starting = starts.first().unwrap();
+            let starting = match starts.first() {
+                None => {
+                    self.print();
+                    break;
+                }
+                Some(x) => x,
+            };
 
-//            println!("{:?}", starting);
             match starting.0 {
                 Direction::South => {
                     self.at_pos_mut(starting.1.shift(Direction::South).unwrap())
@@ -661,7 +750,7 @@ impl<const S: usize> Maze<S> {
             }
             let current = self.at_mut(x, y);
             current.path = Some(true);
-            let dist = current.dist.expect("Maze should have a current distance");
+            let dist = current.dist.expect(format!("Maze should have a current distance {x} {y}").as_str());
 
             let nexts = [
                 (x.saturating_sub(1), y),
@@ -760,7 +849,7 @@ impl<const S: usize> Maze<S> {
                 _ => panic!("pass shouldn't get this large"),
             }
         }
-     //   println!("Result: {}, {} ", self.start, self.end);
+        //   println!("Result: {}, {} ", self.start, self.end);
         (self.start, self.end)
     }
 
@@ -800,7 +889,7 @@ mod test {
     #[test]
     fn test_hunt_and_kill_get_next_start_single() {
         let maze: Maze<4> = Maze::default();
-        let mut rng = rand::rng();
+        let mut rng = ChaCha8Rng::seed_from_u64(12345);
         let mut touched: [[bool; 4]; 4] = [[false; 4]; 4];
         touched[2][2] = true;
         let next = maze.hunt_and_kill_get_next_start(touched, &mut rng);
@@ -815,7 +904,7 @@ mod test {
     #[test]
     fn test_hunt_and_kill_get_next_start_dual() {
         let maze: Maze<4> = Maze::default();
-        let mut rng = rand::rng();
+        let mut rng = ChaCha8Rng::seed_from_u64(12345);
         let mut touched: [[bool; 4]; 4] = [[false; 4]; 4];
         touched[1][2] = true;
         touched[3][2] = true;
@@ -850,9 +939,52 @@ mod test {
     }
 
     #[test]
+    fn test_hunt_and_kill_perfect_maze_fail() {
+        for _ in 0..100 {
+            let mut maze = Maze::<10>::default();
+            for pos in Maze::<10>::all_pos() {
+                if pos.x < 5 {
+                    maze.at_pos_mut(pos).masked = true;
+                }
+            }
+
+            maze = maze.hunt_and_kill();
+            assert!(!maze.is_perfect_maze());
+        }
+    }
+
+    #[test]
+    fn test_hunt_and_kill_perfect_maze_split() {
+        for i in 0..1 {
+            let mut maze = Maze::<10>::default();
+            for pos in Maze::<10>::all_pos() {
+                if pos.x < 5 {
+                    maze.at_pos_mut(pos).masked = true;
+                }
+            }
+            maze = maze.hunt_and_kill();
+            maze.print();
+            for pos in Maze::<10>::all_pos() {
+                maze.at_pos_mut(pos).masked ^= true;
+            }
+            maze = maze.hunt_and_kill();
+
+            maze = maze.connect_all();
+            maze.print();
+            maze.all_cells_mut().for_each(|x| x.masked = false);
+            maze.print();
+
+            assert!(maze.is_perfect_maze(), "{i}");
+        }
+    }
+
+    #[test]
     fn test_hunt_and_kill_perfect_maze() {
         for _ in 0..100 {
-            let maze: Maze<4> = Maze::default().hunt_and_kill().calc_dist(Pos::new(0, 0));
+            let maze: Maze<10> = Maze::default().hunt_and_kill().calc_dist(Pos::default());
+            maze.print();
+            assert!(maze.is_perfect_maze());
+
             for pos in Maze::<4>::all_pos() {
                 let cell = maze.at_pos(pos);
                 assert!(cell.dist.is_some());
